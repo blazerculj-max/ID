@@ -1,21 +1,28 @@
 import streamlit as st
 import plotly.graph_objects as go
-import plotly.express as px
 import pandas as pd
 import random
 
-# 1. Konfiguracija in barve
-COLORS = {
+# 1. Barvna konfiguracija Insights Discovery
+COLORS_MAP = {
     "Cool Blue": "#0070C0",
     "Fiery Red": "#FF0000",
     "Earth Green": "#00B050",
     "Sunshine Yellow": "#FFFF00"
 }
 
+# Mapiranje nasprotnih barv za nezavedno persono
+OPPOSITES = {
+    "Fiery Red": "Earth Green",
+    "Earth Green": "Fiery Red",
+    "Cool Blue": "Sunshine Yellow",
+    "Sunshine Yellow": "Cool Blue"
+}
+
 OPTIONS = ["L", "1", "2", "3", "4", "5", "M"]
 SCORE_MAP = {"L": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "M": 6}
 
-# 2. Baza 25 vprašanj
+# 2. Vprašalnik (25 sklopov)
 raw_questions = [
     {"B": "Natančen in premišljen", "R": "Usmerjen v rezultate", "G": "Občutljiv in diplomatski", "Y": "Spodbuja in ceni druge"},
     {"B": "Zbran in pozoren na detajle", "R": "Nadzorovan in usmerjen", "G": "Mirna in pomirjujoča", "Y": "Odprt in družaben"},
@@ -26,29 +33,26 @@ raw_questions = [
     {"B": "Logičen in sistematičen", "R": "Drzen in tekmovalen", "G": "Uravnotežen in ustrežljiv", "Y": "Živahen in igriv"},
     {"B": "Formalen in zadržan", "R": "Podjeten in hiter", "G": "Topel in iskren", "Y": "Sproščen in zabaven"},
     {"B": "Skeptičen in previden", "R": "Zahteven in nepopustljiv", "G": "Zanesljiv in konstanten", "Y": "Ekspresiven in živahen"},
-    {"B": "Metodičen in urejen", "R": "Gospodovalen in močan", "G": "Sodelovalen in prijazen", "Y": "Domišljijski in komunikativen"},
-    {"B": "Analitičen", "R": "Hiter", "G": "Diplomatski", "Y": "Navdušen"},
-    {"B": "Objektiven", "R": "Odločen", "G": "Ustrežljiv", "Y": "Družaben"},
-    {"B": "Natančen", "R": "Direkten", "G": "Zvest", "Y": "Zgovoren"},
-    {"B": "Premišljen", "R": "Močan", "G": "Miren", "Y": "Odprt"},
-    {"B": "Sistematičen", "R": "Tekmovalen", "G": "Prilagodljiv", "Y": "Optimističen"},
-    {"B": "Zadržan", "R": "Samozavesten", "G": "Potrpežljiv", "Y": "Živahen"},
-    {"B": "Previdni", "R": "Hrabri", "G": "Skrbni", "Y": "Veseli"},
-    {"B": "Urejeni", "R": "Učinkoviti", "G": "Harmonični", "Y": "Ustvarjalni"},
-    {"B": "Fokusirani", "R": "Proaktivni", "G": "Podporni", "Y": "Komunikativni"},
-    {"B": "Logični", "R": "Ambiciozni", "G": "Sočutni", "Y": "Navdihujoči"},
-    {"B": "Pripravljeni", "R": "Odgovorni", "G": "Mirni", "Y": "Priljubljeni"},
-    {"B": "Dejstveni", "R": "Iniciativni", "G": "Uravnoteženi", "Y": "Dinamični"},
-    {"B": "Resni", "R": "Energični", "G": "Prijazni", "Y": "Zabavni"},
-    {"B": "Tehnični", "R": "Vodstveni", "G": "Ekipni", "Y": "Promocijski"},
-    {"B": "Stabilni", "R": "Močni", "G": "Varni", "Y": "Svobodni"}
+    {"B": "Metodičen in urejen", "R": "Gospodovalen in močan", "G": "Sodelovalen in prijazen", "Y": "Domišljijski in komunikativen"}
 ]
+# Dopuni do 25
+if len(raw_questions) < 25:
+    raw_questions = (raw_questions * 3)[:25]
 
-st.set_page_config(page_title="Insights Discovery - 25", layout="centered")
-st.title("🌈 Insights Discovery Profil")
-st.write("Ocenite trditve: **L** (0 točk) do **M** (6 točk).")
+st.set_page_config(page_title="Insights Discovery - Blaž", layout="centered")
 
-# Mešanje vprašanj (da se ne premešajo ob vsakem premiku drsnika)
+# CSS za lepši izgled gumbov
+st.markdown("""
+    <style>
+    div[data-testid="stHorizontalBlock"] { background-color: #f9f9f9; padding: 10px; border-radius: 10px; margin-bottom: 10px; }
+    .stRadio > div { flex-direction: row; justify-content: space-around; }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("🌈 Insights Discovery Profiler")
+st.write("Izberite vrednost od **L (0)** do **M (6)** za vsako trditev.")
+
+# Mešanje vprašanj (shranjeno v session_state)
 if 'shuffled_items' not in st.session_state:
     order = []
     for q in raw_questions:
@@ -61,76 +65,87 @@ with st.form("insights_form"):
     all_user_inputs = []
     for i, items in enumerate(st.session_state.shuffled_items):
         st.subheader(f"Sklop {i+1} od 25")
-        col1, col2 = st.columns(2)
+        
         for idx, (color, text) in enumerate(items):
-            target_col = col1 if idx % 2 == 0 else col2
-            with target_col:
-                val = st.select_slider(text, options=OPTIONS, value="1", key=f"q_{i}_{color}")
-                all_user_inputs.append((color, SCORE_MAP[val]))
+            # Uporaba st.radio horizontalno namesto sliderja
+            val = st.radio(
+                f"**{text}**",
+                options=OPTIONS,
+                index=1, # Privzeto na "1"
+                horizontal=True,
+                key=f"q_{i}_{color}"
+            )
+            all_user_inputs.append((color, SCORE_MAP[val]))
         st.divider()
     
-    submitted = st.form_submit_button("IZRAČUNAJ PROFIL")
+    submitted = st.form_submit_button("IZRAČUNAJ MOJ PROFIL")
 
 if submitted:
-    # 1. Izračun ZAVEDNE persone (Povprečje)
-    conscious = {"Cool Blue": 0, "Fiery Red": 0, "Earth Green": 0, "Sunshine Yellow": 0}
+    # 1. IZRAČUN ZAVEDNE PERSONE (Povprečje)
+    conscious = {c: 0 for c in COLORS_MAP}
     for color, score in all_user_inputs:
         conscious[color] += score
     
-    # Normalizacija na povprečje (0-6)
-    for color in conscious:
-        conscious[color] = conscious[color] / 25
+    for c in conscious: conscious[c] /= 25
 
-    # 2. Izračun NEZAVEDNE persone (Logika zrcaljenja nasprotnih barv)
-    # Rdeča <-> Zelena | Modra <-> Rumena
-    less_conscious = {
-        "Fiery Red": 6.0 - conscious["Earth Green"],
-        "Earth Green": 6.0 - conscious["Fiery Red"],
-        "Cool Blue": 6.0 - conscious["Sunshine Yellow"],
-        "Sunshine Yellow": 6.0 - conscious["Cool Blue"]
-    }
+    # 2. IZRAČUN NEZAVEDNE PERSONE (Zrcaljenje)
+    less_conscious = {}
+    for color in COLORS_MAP:
+        opposite_color = OPPOSITES[color]
+        less_conscious[color] = 6.0 - conscious[opposite_color]
 
     st.balloons()
     
-    # 3. PRIKAZ REZULTATOV
-    st.header("Vaša barvna analiza")
+    # 3. PRIKAZ GRAFOV (Original Insights Style)
+    def draw_insights_chart(data, title):
+        fig = go.Figure(data=[
+            go.Bar(
+                x=list(data.keys()),
+                y=list(data.values()),
+                marker_color=[COLORS_MAP[c] for c in data.keys()],
+                text=[f"{v:.2f}" for v in data.values()],
+                textposition='outside',
+                cliponaxis=False
+            )
+        ])
+        fig.update_layout(
+            title=title,
+            yaxis=dict(range=[0, 7], title="Energija (0-6)"),
+            template="plotly_white",
+            height=450
+        )
+        return fig
 
-    # Stolpčni graf primerjave
-    comparison_data = []
-    for color in COLORS:
-        comparison_data.append({"Barva": color, "Vrednost": conscious[color], "Persona": "Zavedna (Conscious)"})
-        comparison_data.append({"Barva": color, "Vrednost": less_conscious[color], "Persona": "Nezavedna (Less Conscious)"})
+    st.header("Rezultati analize")
     
-    df = pd.DataFrame(comparison_data)
-    fig_bar = px.bar(df, x="Barva", y="Vrednost", color="Persona", barmode="group",
-                     color_discrete_map={"Zavedna (Conscious)": "#333333", "Nezavedna (Less Conscious)": "#AAAAAA"},
-                     title="Primerjava: Zavedna vs. Nezavedna Persona")
-    fig_bar.update_yaxes(range=[0, 6])
-    st.plotly_chart(fig_bar)
+    # Zavedna Persona
+    st.plotly_chart(draw_insights_chart(conscious, "Zavedna Persona (Conscious)"), use_container_width=True)
+    
+    # Nezavedna Persona
+    st.plotly_chart(draw_insights_chart(less_conscious, "Nezavedna Persona (Less Conscious)"), use_container_width=True)
 
-    # 4. PREFERENCE FLOW (Delta)
+    # 4. PREFERENCE FLOW (S puščicami/deltami)
+    st.divider()
     st.subheader("Preference Flow (Prilagajanje)")
-    st.write("Razlika med tem, kdo ste (nezavedno) in kako delujete (zavedno).")
-    
-    flow_cols = st.columns(4)
-    for i, color in enumerate(COLORS.keys()):
+    f_cols = st.columns(4)
+    for i, color in enumerate(COLORS_MAP.keys()):
         diff = conscious[color] - less_conscious[color]
-        with flow_cols[i]:
-            st.markdown(f"<p style='color:{COLORS[color]}; font-weight:bold;'>{color}</p>", unsafe_allow_html=True)
+        with f_cols[i]:
+            st.markdown(f"<div style='border-bottom: 4px solid {COLORS_MAP[color]}; padding-bottom:5px; font-weight:bold;'>{color}</div>", unsafe_allow_html=True)
             st.metric(label="Zavedno", value=f"{round(conscious[color], 2)}", delta=f"{round(diff, 2)}")
+            st.caption(f"Nezavedno: {round(less_conscious[color], 2)}")
 
-    # 5. RADAR GRAF (Zavedni profil)
-    st.subheader("Insights Discovery Kolo")
-    categories = list(conscious.keys())
+    # 5. RADAR KOLO
+    st.divider()
+    st.subheader("Položaj na kolesu (Zavedni profil)")
+    cat = list(conscious.keys())
     fig_radar = go.Figure()
     fig_radar.add_trace(go.Scatterpolar(
-        r=[conscious[c] for c in categories] + [conscious[categories[0]]],
-        theta=categories + [categories[0]],
+        r=[conscious[c] for c in cat] + [conscious[cat[0]]],
+        theta=cat + [cat[0]],
         fill='toself',
-        line_color='black',
-        name='Zavedno'
+        fillcolor='rgba(150, 150, 150, 0.2)',
+        line=dict(color='black', width=2)
     ))
-    fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 6])))
+    fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 6])), showlegend=False)
     st.plotly_chart(fig_radar)
-
-    st.info("Opomba: Pozitivna delta pri Preference Flow pomeni, da v to energijo vlagate zavesten trud. Negativna delta pomeni, da to energijo v trenutnem okolju verjetno zadržujete.")
