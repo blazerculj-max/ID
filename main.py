@@ -4,24 +4,36 @@ import pandas as pd
 from fpdf import FPDF
 from openai import OpenAI
 import io
+import unicodedata
 
-# --- POMOŽNA FUNKCIJA ZA ŠUMNIK ---
+# --- IZBOLJŠANA FUNKCIJA ZA ČIŠČENJE BESEDILA ---
 def clean_chars(text):
-    mapping = {"č": "c", "š": "s", "ž": "z", "Č": "C", "Š": "S", "Ž": "Z", "\xa0": " "}
+    if text is None:
+        return ""
+    # Najprej normaliziramo Unicode (pretvori npr. posebne narekovaje v navadne)
+    text = unicodedata.normalize('NFKD', text)
+    # Ročna zamenjava šumnikov in pogostih problematičnih znakov
+    mapping = {
+        "č": "c", "š": "s", "ž": "z", 
+        "Č": "C", "Š": "S", "Ž": "Z",
+        "\xa0": " ", "–": "-", "—": "-", 
+        "“": "\"", "”": "\"", "‘": "'", "’": "'"
+    }
     for k, v in mapping.items():
         text = text.replace(k, v)
-    return text
+    # Odstranimo vse znake, ki niso ASCII (varnostna mreža)
+    return text.encode("ascii", "ignore").decode("ascii")
 
 # --- PRODAJNI PSIHOMETRIČNI MASTER PROMPT ---
 MASTER_SYSTEM_PROMPT = """
-Ti si vrhunski prodajni coach in strokovnjak za psihometrijo. Tvoja naloga je "prevesti" suhoparne podatke v privlačen, razumljiv in prodajen jezik, ki ga bo razumel vsak laik.
+Ti si vrhunski prodajni coach in strokovnjak za psihometrijo. Tvoja naloga je "prevesti" podatke v privlačen, razumljiv in prodajen jezik.
 
 NAVODILA ZA VSEBINO:
-1. JEZIK: Uporabljaj pogovorni, a spoštljiv ton (prodajni jezik). Izogibaj se tehničnemu žargonu in barvam (ne piši "modra energija").
-2. BARNUMOVI STAVKI: Uporabljaj formulacije, ki stranki dajo občutek: "To sem točno jaz!".
-3. POGLAVJE O PRODAJNEM STILU: Ustvari specifično analizo, kako ta oseba prodaja, katere so njene naravne prednosti (Plusi) in kje so pasti (Izzivi).
-4. STRUKTURA: Uporabljaj VELIKE TISKANE NASLOVE brez oznak ###. Vsebino razdeli na odstavke in bogate alineje.
-5. CILJ: Stranka se mora po branju počutiti opolnomočeno in razumljeno.
+1. JEZIK: Uporabljaj pogovorni, razumljiv ton. Izogibaj se tehničnemu žargonu in barvam (ne piši "modra energija").
+2. BARNUMOVI STAVKI: Uporabljaj prepričljive formulacije, ki stranko navdušijo nad njenim potencialom.
+3. PRODAJNI STIL: Analiziraj, kako oseba prepričuje in gradi zaupanje.
+4. PLUSI IN IZZIVI: Navedi konkretne prednosti in jasna področja za izboljšavo.
+5. FORMAT: Naslove poglavij piši z VELIKIMI ČRKAMI. Ne uporabljaj znakov ### ali **.
 """
 
 # --- KONFIGURACIJA ---
@@ -36,12 +48,7 @@ def generiraj_prodajni_profil(ime, conscious, less_conscious, coaching_txt):
     user_content = f"""
     Sestavi prodajni psihološki profil za: {ime}.
     Rezultati (0-6): {conscious}. Manj zavedno: {less_conscious}.
-    
-    Obvezno vključi:
-    1. PRODAJNI STIL POSAMEZNIKA: Kako prepričuje in gradi zaupanje?
-    2. PLUSI (Prednosti): V čem blesti? (alineje)
-    3. RAZVOJNA PODROČJA: Na čem bo moral delati, da bo še boljši? (alineje)
-    4. {coaching_txt}
+    Vključi poglavja: PRODAJNI STIL, PLUSI, RAZVOJNA PODROČJA in {coaching_txt}.
     """
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -78,11 +85,7 @@ st.title("🚀 Prodajni Psihometrični Profiler")
 st.markdown("""
 <div class="instruction-box">
     <h3>📝 Navodila za vnos</h3>
-    <p>Ocenite trditve glede na to, kako močno veljajo za vas v delovnem okolju:</p>
-    <ul>
-        <li><b>L (Najmanj)</b> do <b>M (Najbolj)</b>.</li>
-        <li>Ocenite <b>vsako trditev posebej</b> v sklopu vprašanja.</li>
-    </ul>
+    <p>Ocenite trditve (L do M) glede na to, kako močno veljajo za vas v delovnem okolju.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -123,16 +126,15 @@ with st.form("main_form"):
                     all_inputs.append((color, SCORE_MAP[val]))
     
     st.divider()
-    st.subheader("🎯 Dodatki za prodajno poročilo")
     c1, c2 = st.columns(2)
     with c1:
         stres = st.checkbox("Odziv v stresnih situacijah", value=True)
-        vodenje = st.checkbox("Nasveti za vodjo te osebe")
+        vodenje = st.checkbox("Nasveti za vodjo")
     with c2:
-        pege = st.checkbox("Skrite pasti (Slepe pege)")
+        pege = st.checkbox("Slepe pege")
         tim = st.checkbox("Dinamika v timu")
     
-    submitted = st.form_submit_button("GENERIRAJ PRODAJNI PDF")
+    submitted = st.form_submit_button("USTVARI PRODAJNI PDF")
 
 if submitted:
     if not polno_ime:
@@ -141,16 +143,16 @@ if submitted:
         conscious = {c: sum([s for col, s in all_inputs if col == c]) / 15 for c in COLORS_MAP}
         less_conscious = {c: 6.0 - conscious[OPPOSITES[c]] for c in COLORS_MAP}
         
-        with st.spinner("Genie prevaja podatke v prodajni jezik..."):
+        with st.spinner("Genie pripravlja poročilo..."):
             ai_text = generiraj_prodajni_profil(polno_ime, conscious, less_conscious, "Stres, Vodenje, Slepe pege, Tim")
-            graf_z = ustvari_graf(conscious, "Kvantitativni profil")
+            graf_z = ustvari_graf(conscious, "Profil preferenc")
             
             pdf = FPDF()
             pdf.set_auto_page_break(auto=True, margin=20)
             
             # NASLOVNICA
             pdf.add_page()
-            pdf.set_fill_color(40, 167, 69) # Prodajna zelena
+            pdf.set_fill_color(40, 167, 69)
             pdf.rect(0, 0, 210, 60, 'F')
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", "B", 24)
@@ -159,14 +161,11 @@ if submitted:
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Helvetica", "B", 20)
             pdf.cell(0, 10, clean_chars(polno_ime), align='C', new_x="LMARGIN", new_y="NEXT")
-            pdf.set_font("Helvetica", "I", 12)
-            pdf.cell(0, 10, clean_chars("Analiza naravnih talentov in prodajnega potenciala"), align='C', new_x="LMARGIN", new_y="NEXT")
             
             # GRAF
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 16)
-            pdf.cell(0, 15, clean_chars("Vizualni povzetek preferenc"), new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(5)
+            pdf.cell(0, 15, clean_chars("Vizualni povzetek"), new_x="LMARGIN", new_y="NEXT")
             pdf.image(graf_z, x=40, w=130)
             
             # ANALIZA
@@ -190,5 +189,5 @@ if submitted:
                         pdf.ln(1)
             
             pdf_out = bytes(pdf.output())
-            st.success("Vaše prodajno poročilo je pripravljeno!")
-            st.download_button("📥 Prenesi Prodajni PDF", pdf_out, f"Prodajni_Profil_{polno_ime}.pdf")
+            st.success("Uspešno!")
+            st.download_button("📥 Prenesi PDF", pdf_out, f"Profil_{polno_ime}.pdf")
