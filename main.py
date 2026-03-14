@@ -12,17 +12,16 @@ def clean_chars(text):
         text = text.replace(k, v)
     return text
 
-# --- PSIHOMETRIČNI MASTER PROMPT ---
+# --- PRODAJNI PSIHOMETRIČNI MASTER PROMPT ---
 MASTER_SYSTEM_PROMPT = """
-Ti si vrhunski strokovnjak za psihometrične profile (DISC, MBTI, Insights). 
-Tvoja naloga je ustvariti poglobljeno analizo osebnosti na podlagi kvantitativnih podatkov.
+Ti si vrhunski prodajni coach in strokovnjak za psihometrijo. Tvoja naloga je "prevesti" suhoparne podatke v privlačen, razumljiv in prodajen jezik, ki ga bo razumel vsak laik.
 
 NAVODILA ZA VSEBINO:
-1. STROGO PREPOVEDANO: Ne uporabljaj besednih zvez kot so "barvne energije", "modra", "rdeča", "zelena" ali "rumena energija".
-2. UPORABLJAJ strokovne termine: "kognitivna kompleksnost", "analitična natančnost", "ekspresivna komunikacija", "direktivni slog", "kooperativna naravnanost", "metodičen pristop".
-3. STIL PISANJA: Uporabljaj t.i. Barnumove stavke – strokovne ugotovitve, ki delujejo globoko osebno in specifično.
-4. STRUKTURA: Besedilo naj bo razpotegnjeno, analitično in bogato. Vsako poglavje naj vsebuje 5-7 dolgih alinej.
-5. FORMATIRANJE: Naslove poglavij piši z VELIKIMI ČRKAMI. Ne uporabljaj ### ali **.
+1. JEZIK: Uporabljaj pogovorni, a spoštljiv ton (prodajni jezik). Izogibaj se tehničnemu žargonu in barvam (ne piši "modra energija").
+2. BARNUMOVI STAVKI: Uporabljaj formulacije, ki stranki dajo občutek: "To sem točno jaz!".
+3. POGLAVJE O PRODAJNEM STILU: Ustvari specifično analizo, kako ta oseba prodaja, katere so njene naravne prednosti (Plusi) in kje so pasti (Izzivi).
+4. STRUKTURA: Uporabljaj VELIKE TISKANE NASLOVE brez oznak ###. Vsebino razdeli na odstavke in bogate alineje.
+5. CILJ: Stranka se mora po branju počutiti opolnomočeno in razumljeno.
 """
 
 # --- KONFIGURACIJA ---
@@ -33,14 +32,16 @@ SCORE_MAP = {"L": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "M": 6}
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-def generiraj_psihometricni_profil(ime, conscious, less_conscious, coaching_txt):
+def generiraj_prodajni_profil(ime, conscious, less_conscious, coaching_txt):
     user_content = f"""
-    Ustvari osebni profil za: {ime}.
-    Rezultati zavednega dela (0-6): {conscious}
-    Rezultati manj zavednega dela (0-6): {less_conscious}
-    Analiziraj osebni slog, proces odločanja in vpliv na ekipo. 
-    Vključi analizo za: {coaching_txt}.
-    Bodi izjemno podroben in strokoven.
+    Sestavi prodajni psihološki profil za: {ime}.
+    Rezultati (0-6): {conscious}. Manj zavedno: {less_conscious}.
+    
+    Obvezno vključi:
+    1. PRODAJNI STIL POSAMEZNIKA: Kako prepričuje in gradi zaupanje?
+    2. PLUSI (Prednosti): V čem blesti? (alineje)
+    3. RAZVOJNA PODROČJA: Na čem bo moral delati, da bo še boljši? (alineje)
+    4. {coaching_txt}
     """
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -63,25 +64,24 @@ def ustvari_graf(data, title):
     return buf
 
 # --- UI APPLIKACIJE ---
-st.set_page_config(page_title="Professional Psychometric Profiler", layout="wide")
+st.set_page_config(page_title="Sales Psychometric Expert", layout="wide")
 
 st.markdown("""
     <style>
     div.row-widget.stRadio > div { flex-direction: row; justify-content: flex-start; gap: 10px; }
-    .instruction-box { background-color: #f0f2f6; padding: 20px; border-radius: 10px; border-left: 5px solid #0070C0; margin-bottom: 25px; }
+    .instruction-box { background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 5px solid #28a745; margin-bottom: 25px; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🛡️ Profesionalni Psihometrični Profiler")
+st.title("🚀 Prodajni Psihometrični Profiler")
 
 st.markdown("""
 <div class="instruction-box">
-    <h3>📋 Navodila za izpolnjevanje</h3>
-    <p>Pri vsakem vprašanju določite stopnjo, ki vas najbolje opisuje:</p>
+    <h3>📝 Navodila za vnos</h3>
+    <p>Ocenite trditve glede na to, kako močno veljajo za vas v delovnem okolju:</p>
     <ul>
-        <li><b>L (Least)</b>: Ta trditev vas sploh ne opisuje.</li>
-        <li><b>M (Most)</b>: Ta trditev vas popolnoma opisuje.</li>
-        <li><b>1–5</b>: Vmesne stopnje strinjanja.</li>
+        <li><b>L (Najmanj)</b> do <b>M (Najbolj)</b>.</li>
+        <li>Ocenite <b>vsako trditev posebej</b> v sklopu vprašanja.</li>
     </ul>
 </div>
 """, unsafe_allow_html=True)
@@ -123,26 +123,26 @@ with st.form("main_form"):
                     all_inputs.append((color, SCORE_MAP[val]))
     
     st.divider()
-    st.subheader("🎯 Moduli za poročilo")
+    st.subheader("🎯 Dodatki za prodajno poročilo")
     c1, c2 = st.columns(2)
     with c1:
-        stres = st.checkbox("Vedenje v stresu", value=True)
-        vodenje = st.checkbox("Slog vodenja")
+        stres = st.checkbox("Odziv v stresnih situacijah", value=True)
+        vodenje = st.checkbox("Nasveti za vodjo te osebe")
     with c2:
-        pege = st.checkbox("Slepe pege")
-        tim = st.checkbox("Vloga v timu")
+        pege = st.checkbox("Skrite pasti (Slepe pege)")
+        tim = st.checkbox("Dinamika v timu")
     
-    submitted = st.form_submit_button("USTVARI PROFESIONALNO POROČILO")
+    submitted = st.form_submit_button("GENERIRAJ PRODAJNI PDF")
 
 if submitted:
     if not polno_ime:
-        st.error("Prosim, vnesite ime.")
+        st.error("Prosim, vnesite ime stranke.")
     else:
         conscious = {c: sum([s for col, s in all_inputs if col == c]) / 15 for c in COLORS_MAP}
         less_conscious = {c: 6.0 - conscious[OPPOSITES[c]] for c in COLORS_MAP}
         
-        with st.spinner("Generiram analizo..."):
-            ai_text = generiraj_psihometricni_profil(polno_ime, conscious, less_conscious, "Stres, Vodenje, Slepe pege, Tim")
+        with st.spinner("Genie prevaja podatke v prodajni jezik..."):
+            ai_text = generiraj_prodajni_profil(polno_ime, conscious, less_conscious, "Stres, Vodenje, Slepe pege, Tim")
             graf_z = ustvari_graf(conscious, "Kvantitativni profil")
             
             pdf = FPDF()
@@ -150,28 +150,30 @@ if submitted:
             
             # NASLOVNICA
             pdf.add_page()
-            pdf.set_fill_color(0, 112, 192)
+            pdf.set_fill_color(40, 167, 69) # Prodajna zelena
             pdf.rect(0, 0, 210, 60, 'F')
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", "B", 24)
-            pdf.cell(0, 40, clean_chars("PSIHOMETRICNO POROCILO OSEBNOSTI"), align='C', new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 40, clean_chars("PRODAJNI PROFIL OSEBNOSTI"), align='C', new_x="LMARGIN", new_y="NEXT")
             pdf.ln(30)
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Helvetica", "B", 20)
             pdf.cell(0, 10, clean_chars(polno_ime), align='C', new_x="LMARGIN", new_y="NEXT")
+            pdf.set_font("Helvetica", "I", 12)
+            pdf.cell(0, 10, clean_chars("Analiza naravnih talentov in prodajnega potenciala"), align='C', new_x="LMARGIN", new_y="NEXT")
             
             # GRAF
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 16)
-            pdf.cell(0, 15, clean_chars("Kvantitativni profil preferenc"), new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 15, clean_chars("Vizualni povzetek preferenc"), new_x="LMARGIN", new_y="NEXT")
             pdf.ln(5)
             pdf.image(graf_z, x=40, w=130)
             
             # ANALIZA
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 14)
-            pdf.set_text_color(0, 112, 192)
-            pdf.cell(0, 15, clean_chars("EKSPERTNA ANALIZA"), new_x="LMARGIN", new_y="NEXT")
+            pdf.set_text_color(40, 167, 69)
+            pdf.cell(0, 15, clean_chars("EKSPERTNA INTERPRETACIJA"), new_x="LMARGIN", new_y="NEXT")
             pdf.set_text_color(0, 0, 0)
             pdf.ln(5)
             
@@ -188,5 +190,5 @@ if submitted:
                         pdf.ln(1)
             
             pdf_out = bytes(pdf.output())
-            st.success("Končano!")
-            st.download_button("📥 Prenesi PDF", pdf_out, f"Profil_{polno_ime}.pdf")
+            st.success("Vaše prodajno poročilo je pripravljeno!")
+            st.download_button("📥 Prenesi Prodajni PDF", pdf_out, f"Prodajni_Profil_{polno_ime}.pdf")
