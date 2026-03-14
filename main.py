@@ -5,7 +5,7 @@ import random
 from streamlit_gsheets import GSheetsConnection
 from datetime import datetime
 
-# --- KONFIGURACIJA ---
+# --- KONFIGURACIJA BARV ---
 COLORS_MAP = {
     "Cool Blue": "#0070C0", "Fiery Red": "#FF0000",
     "Earth Green": "#00B050", "Sunshine Yellow": "#FFFF00"
@@ -17,6 +17,7 @@ OPPOSITES = {
 OPTIONS = ["L", "1", "2", "3", "4", "5", "M"]
 SCORE_MAP = {"L": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "M": 6}
 
+# Vprašalnik (15 sklopov)
 raw_questions = [
     {"B": "Sistematičen in dosleden", "R": "Neposreden in prodoren", "G": "Razumevajoč in ustrežljiv", "Y": "Živahen in komunikativen"},
     {"B": "Objektiven opazovalec", "R": "Močan in neodvisen", "G": "Zanesljiv sopotnik", "Y": "Navdihujoč govorec"},
@@ -37,7 +38,7 @@ raw_questions = [
 
 st.set_page_config(page_title="Insights Discovery - Blaž", layout="centered")
 
-# Povezava
+# Povezava na Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 st.title("🌈 Insights Discovery Profiler")
@@ -59,54 +60,53 @@ with st.form("insights_form"):
         for idx, (color, text) in enumerate(items):
             val = st.radio(f"**{text}**", options=OPTIONS, index=1, horizontal=True, key=f"q_{i}_{color}")
             all_user_inputs.append((color, SCORE_MAP[val]))
-    submitted = st.form_submit_button("ODDAJ IN IZRAČUNAJ PROFIL")
+    submitted = st.form_submit_button("IZRAČUNAJ IN SHRANI PROFIL")
 
 if submitted:
     if not ime or not priimek:
         st.error("Prosim, vnesite ime in priimek!")
     else:
-        # 1. IZRAČUN
+        # 1. Izračun energij
         conscious = {c: sum([score for color, score in all_user_inputs if color == c]) / 15 for c in COLORS_MAP}
         less_conscious = {c: 6.0 - conscious[OPPOSITES[c]] for c in COLORS_MAP}
 
-        # 2. SHRANJEVANJE
+        # 2. Shranjevanje v bazo
         try:
-            new_entry = {
+            new_data = pd.DataFrame([{
                 "Ime": ime, "Priimek": priimek, "Datum": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
                 "B_Zavedno": round(conscious["Cool Blue"], 2), "R_Zavedno": round(conscious["Fiery Red"], 2),
                 "G_Zavedno": round(conscious["Earth Green"], 2), "Y_Zavedno": round(conscious["Sunshine Yellow"], 2),
                 "B_Nezavedno": round(less_conscious["Cool Blue"], 2), "R_Nezavedno": round(less_conscious["Fiery Red"], 2),
                 "G_Nezavedno": round(less_conscious["Earth Green"], 2), "Y_Nezavedno": round(less_conscious["Sunshine Yellow"], 2)
-            }
+            }])
+            
             existing_data = conn.read(worksheet="Sheet1")
-            updated_df = pd.concat([existing_data, pd.DataFrame([new_entry])], ignore_index=True)
+            updated_df = pd.concat([existing_data, new_data], ignore_index=True)
             conn.update(worksheet="Sheet1", data=updated_df)
-            st.success("Podatki so varno shranjeni.")
+            st.success("Podatki so varno shranjeni v tvojo Google tabelo.")
         except Exception as e:
-            st.warning(f"Baza ni dosegljiva, rezultati so spodaj: {e}")
+            st.warning(f"Pri shranjevanju je prišlo do težave, vendar so rezultati prikazani spodaj: {e}")
 
-        # 3. VIZUALIZACIJA (Barvni grafi)
+        # 3. Vizualizacija grafov
         st.header(f"Analiza za: {ime} {priimek}")
         
-        def draw_chart(data, title):
-            fig = go.Figure(go.Bar(
+        def create_bar(data, title):
+            return go.Figure(go.Bar(
                 x=list(data.keys()), y=list(data.values()),
                 marker_color=[COLORS_MAP[c] for c in data.keys()],
                 text=[f"{v:.2f}" for v in data.values()], textposition='auto'
-            ))
-            fig.update_layout(title=title, yaxis=dict(range=[0, 6]), template="plotly_white")
-            return fig
+            )).update_layout(title=title, yaxis=dict(range=[0, 6]), template="plotly_white")
 
-        col1, col2 = st.columns(2)
-        with col1: st.plotly_chart(draw_chart(conscious, "Zavedna Persona"), use_container_width=True)
-        with col2: st.plotly_chart(draw_chart(less_conscious, "Nezavedna Persona"), use_container_width=True)
+        c1, c2 = st.columns(2)
+        with c1: st.plotly_chart(create_bar(conscious, "Zavedna Persona"), use_container_width=True)
+        with c2: st.plotly_chart(create_bar(less_conscious, "Nezavedna Persona"), use_container_width=True)
 
-        # PREFERENCE FLOW
+        # Preference Flow prikaz
         st.divider()
-        st.subheader("Preference Flow (Prilagajanje)")
-        cols = st.columns(4)
+        st.subheader("Preference Flow (Prilagajanje energije)")
+        p_cols = st.columns(4)
         for i, color in enumerate(COLORS_MAP):
             diff = conscious[color] - less_conscious[color]
-            with cols[i]:
-                st.markdown(f"<p style='color:{COLORS_MAP[color]}; font-weight:bold;'>{color}</p>", unsafe_allow_html=True)
-                st.metric(label="Zavedno", value=f"{round(conscious[color], 2)}", delta=f"{round(diff, 2)}")
+            with p_cols[i]:
+                st.markdown(f"<b style='color:{COLORS_MAP[color]}'>{color}</b>", unsafe_allow_html=True)
+                st.metric(label="Zavedno", value=round(conscious[color], 2), delta=round(diff, 2))
