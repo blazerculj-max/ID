@@ -2,7 +2,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 import random
-from fpdf import FPDF
+from fpdf import FPDF  # fpdf2 uporablja isto ime za uvoz, a je naprednejša
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -12,7 +12,7 @@ import os
 
 # --- KONFIGURACIJA ---
 EMAIL_SENDER = "blazerculj@gmail.com"
-EMAIL_PASSWORD = "hsmq lbkk huny bfdk" # <--- SEM VPISI SVOJE GESLO ZA APLIKACIJE
+EMAIL_PASSWORD = "vpisi_svoj_google_app_password" 
 EMAIL_RECEIVER = "blazerculj@gmail.com"
 
 COLORS_MAP = {
@@ -26,7 +26,7 @@ OPPOSITES = {
 OPTIONS = ["L", "1", "2", "3", "4", "5", "M"]
 SCORE_MAP = {"L": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "M": 6}
 
-# 15 NOVIH SKLOPOV TRDITEV
+# 15 SKLOPOV
 raw_questions = [
     {"B": "Sistematičen in dosleden", "R": "Neposreden in prodoren", "G": "Razumevajoč in ustrežljiv", "Y": "Živahen in komunikativen"},
     {"B": "Objektiven opazovalec", "R": "Močan in neodvisen", "G": "Zanesljiv sopotnik", "Y": "Navdihujoč govorec"},
@@ -35,7 +35,7 @@ raw_questions = [
     {"B": "Analitičen in distanciran", "R": "Energičen in tekmovalen", "G": "Iskren in lojalen", "Y": "Družaben in prepričljiv"},
     {"B": "Strokovno podkovan", "R": "Drzen pri odločanju", "G": "Uravnotežen in nežen", "Y": "Poln novih idej"},
     {"B": "Premišljen strateg", "R": "Dinamičen vodja", "G": "Podporen poslušalec", "Y": "Navdušen motivator"},
-    {"B": "Metodičen in urejen", "R": "Avtoritativen in fokisiran", "G": "Diplomatski in miren", "Y": "Priljubljen in odprt"},
+    {"B": "Metodičen in urejen", "R": "Avtoritativen in fokusiran", "G": "Diplomatski in miren", "Y": "Priljubljen in odprt"},
     {"B": "Previdno previden", "R": "Rezultatno zahteven", "G": "Stabilno zanesljiv", "Y": "Zgovorno prijazen"},
     {"B": "Uraden in zadržan", "R": "Vpliven in hiter", "G": "Topel in miren", "Y": "Duhovit in opazen"},
     {"B": "Temeljit preučevalec", "R": "Samozavesten akter", "G": "Zvest sodelavec", "Y": "Domišljijski vizionar"},
@@ -72,66 +72,60 @@ with st.form("insights_form"):
 
 if submitted:
     if not ime or not priimek:
-        st.error("Prosim, vpišite ime in priimek!")
+        st.error("Prosim, vnesite ime in priimek!")
     else:
         # 1. IZRAČUN
-        conscious = {c: 0 for c in COLORS_MAP}
-        for color, score in all_user_inputs:
-            conscious[color] += score
-        for c in conscious:
-            conscious[c] = conscious[c] / 15
-
+        conscious = {c: sum([score for color, score in all_user_inputs if color == c]) / 15 for c in COLORS_MAP}
         less_conscious = {c: 6.0 - conscious[OPPOSITES[c]] for c in COLORS_MAP}
 
-        # 2. PDF GENERIRANJE
+        # 2. PDF GENERIRANJE (z fpdf2, ki podpira UTF-8)
         pdf = FPDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        
-        # Stran 1: Naslovnica
         pdf.add_page()
-        pdf.set_font("Arial", 'B', 25)
-        pdf.cell(200, 60, "Insights Discovery Osebni Profil", ln=True, align='C')
-        pdf.set_font("Arial", '', 18)
-        pdf.cell(200, 20, f"Pripravljeno za: {ime} {priimek}", ln=True, align='C')
+        
+        # Uporabimo sistemsko pisavo, ki podpira Unicode znake (šumnike)
+        pdf.set_font("helvetica", "B", 25)
+        pdf.cell(0, 60, "Insights Discovery Osebni Profil", new_x="LMARGIN", new_y="NEXT", align='C')
+        
+        pdf.set_font("helvetica", "", 18)
+        pdf.cell(0, 20, f"Pripravljeno za: {ime} {priimek}", new_x="LMARGIN", new_y="NEXT", align='C')
         
         # Stran 2: Zavedna Persona
         pdf.add_page()
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(200, 10, "1. Zavedna Persona (Conscious)", ln=True)
-        pdf.set_font("Arial", '', 12)
+        pdf.set_font("helvetica", "B", 16)
+        pdf.cell(0, 10, "1. Zavedna Persona (Conscious)", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("helvetica", "", 12)
         pdf.ln(5)
-        pdf.multi_cell(0, 10, "Zavedna persona predstavlja stil vedenja, ki ga namenoma izbirate in kazete v svojem delovnem okolju.")
+        pdf.multi_cell(0, 10, "Zavedna persona predstavlja stil vedenja, ki ga namenoma izbirate in kažete v svojem delovnem okolju.")
         pdf.ln(5)
         for c, v in conscious.items():
-            pdf.cell(200, 10, f"- {c}: {round(v, 2)} od 6.00", ln=True)
+            pdf.cell(0, 10, f"- {c}: {round(v, 2)} od 6.00", new_x="LMARGIN", new_y="NEXT")
 
         # Stran 3: Nezavedna Persona
         pdf.add_page()
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(200, 10, "2. Nezavedna Persona (Less Conscious)", ln=True)
-        pdf.set_font("Arial", '', 12)
+        pdf.set_font("helvetica", "B", 16)
+        pdf.cell(0, 10, "2. Nezavedna Persona (Less Conscious)", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("helvetica", "", 12)
         pdf.ln(5)
-        pdf.multi_cell(0, 10, "Nezavedna persona odraza vas naravni odziv, ko niste pod pritiskom ali ko se odzivate instinktivno.")
+        pdf.multi_cell(0, 10, "Nezavedna persona odraža vaš naravni odziv, ko niste pod pritiskom ali ko se odzivate instinktivno.")
         pdf.ln(5)
         for c, v in less_conscious.items():
-            pdf.cell(200, 10, f"- {c}: {round(v, 2)} od 6.00", ln=True)
+            pdf.cell(0, 10, f"- {c}: {round(v, 2)} od 6.00", new_x="LMARGIN", new_y="NEXT")
 
         # Stran 4: Preference Flow
         pdf.add_page()
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(200, 10, "3. Preference Flow (Analiza premika)", ln=True)
-        pdf.set_font("Arial", '', 12)
+        pdf.set_font("helvetica", "B", 16)
+        pdf.cell(0, 10, "3. Preference Flow (Analiza premika)", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("helvetica", "", 12)
         pdf.ln(5)
-        pdf.multi_cell(0, 10, "Prikazuje razliko med vaso naravno energijo in energijo, ki jo kazete navzven.")
+        pdf.multi_cell(0, 10, "Prikazuje razliko med vašo naravno energijo in energijo, ki jo kažete navzven.")
         pdf.ln(5)
         for c in COLORS_MAP:
             diff = conscious[c] - less_conscious[c]
-            status = "Poudarjanje" if diff >= 0 else "Zadrzevanje"
-            pdf.cell(200, 10, f"- {c}: Premik {round(diff, 2)} ({status})", ln=True)
+            status = "Poudarjanje" if diff >= 0 else "Zadrževanje"
+            pdf.cell(0, 10, f"- {c}: Premik {round(diff, 2)} ({status})", new_x="LMARGIN", new_y="NEXT")
 
-        # Shranjevanje PDF
-        clean_name = f"{ime}_{priimek}".replace(" ", "_")
-        filename = f"{clean_name}.pdf"
+        # Shranjevanje
+        filename = f"{ime}_{priimek}.pdf".replace(" ", "_")
         pdf.output(filename)
 
         # 3. POŠILJANJE
@@ -155,7 +149,7 @@ if submitted:
             s.send_message(msg)
             s.quit()
             
-            st.success(f"Profil {filename} je uspesno poslan!")
+            st.success(f"Profil {filename} je uspešno poslan!")
             os.remove(filename)
         except Exception as e:
-            st.error(f"Napaka pri posiljanju: {e}")
+            st.error(f"Napaka pri pošiljanju: {e}")
