@@ -59,12 +59,12 @@ def ustvari_graf(data, title):
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight')
     plt.close(fig)
+    buf.seek(0)
     return buf
 
 # --- UI APPLIKACIJE ---
 st.set_page_config(page_title="Professional Psychometric Profiler", layout="wide")
 
-# CSS za lepšo poravnavo gumbov
 st.markdown("""
     <style>
     div.row-widget.stRadio > div { flex-direction: row; justify-content: flex-start; gap: 10px; }
@@ -74,23 +74,21 @@ st.markdown("""
 
 st.title("🛡️ Profesionalni Psihometrični Profiler")
 
-# --- NAVODILA NA VRHU ---
 st.markdown("""
 <div class="instruction-box">
     <h3>📋 Navodila za izpolnjevanje</h3>
-    <p>Vprašalnik je zasnovan za analizo vaših vedenjskih preferenc na delovnem mestu. Pri vsakem vprašanju boste videli štiri trditve. Vaša naloga je, da za <b>vsako posamezno trditev</b> določite stopnjo, ki vas najbolje opisuje:</p>
+    <p>Pri vsakem vprašanju določite stopnjo, ki vas najbolje opisuje:</p>
     <ul>
-        <li><b>L (Least)</b>: Ta trditev vas sploh ne opisuje oziroma vas opisuje najmanj.</li>
-        <li><b>M (Most)</b>: Ta trditev vas popolnoma opisuje oziroma je za vas najbolj značilna.</li>
-        <li><b>Številke 1–5</b>: Uporabite jih za vmesne stopnje strinjanja.</li>
+        <li><b>L (Least)</b>: Ta trditev vas sploh ne opisuje.</li>
+        <li><b>M (Most)</b>: Ta trditev vas popolnoma opisuje.</li>
+        <li><b>1–5</b>: Vmesne stopnje strinjanja.</li>
     </ul>
-    <p><i>Nasvet: Bodite iskreni in se odločite hitro na podlagi prvega občutka. Ni napačnih odgovorov!</i></p>
 </div>
 """, unsafe_allow_html=True)
 
 polno_ime = st.text_input("Ime in priimek stranke", placeholder="Janez Novak")
 
-# 15 vprašanj (vstavi svoje v celoti)
+# 15 Vprašanj
 raw_questions = [
     {"B": "Sistematičen in dosleden", "R": "Neposreden in prodoren", "G": "Razumevajoč in ustrežljiv", "Y": "Živahen in komunikativen"},
     {"B": "Objektiven opazovalec", "R": "Močan in neodvisen", "G": "Zanesljiv sopotnik", "Y": "Navdihujoč govorec"},
@@ -125,27 +123,27 @@ with st.form("main_form"):
                     all_inputs.append((color, SCORE_MAP[val]))
     
     st.divider()
-    st.subheader("🎯 Izbira modulov za končno poročilo")
+    st.subheader("🎯 Moduli za poročilo")
     c1, c2 = st.columns(2)
     with c1:
-        stres = st.checkbox("Analiza vedenja v stresnih situacijah", value=True)
-        vodenje = st.checkbox("Slog vodenja in motivacijski dejavniki")
+        stres = st.checkbox("Vedenje v stresu", value=True)
+        vodenje = st.checkbox("Slog vodenja")
     with c2:
-        pege = st.checkbox("Slepe pege in razvojni izzivi")
-        tim = st.checkbox("Vloga v timu in komunikacijski slog")
+        pege = st.checkbox("Slepe pege")
+        tim = st.checkbox("Vloga v timu")
     
-    submitted = st.form_submit_button("GENERIRAJ PROFESIONALNO POROČILO")
+    submitted = st.form_submit_button("USTVARI PROFESIONALNO POROČILO")
 
 if submitted:
     if not polno_ime:
-        st.error("Prosim, vnesite ime za generiranje poročila.")
+        st.error("Prosim, vnesite ime.")
     else:
         conscious = {c: sum([s for col, s in all_inputs if col == c]) / 15 for c in COLORS_MAP}
         less_conscious = {c: 6.0 - conscious[OPPOSITES[c]] for c in COLORS_MAP}
         
-        with st.spinner("Pripravljam psihometrično analizo..."):
+        with st.spinner("Generiram analizo..."):
             ai_text = generiraj_psihometricni_profil(polno_ime, conscious, less_conscious, "Stres, Vodenje, Slepe pege, Tim")
-            graf_z = ustvari_graf(conscious, "Profil zavedne persone")
+            graf_z = ustvari_graf(conscious, "Kvantitativni profil")
             
             pdf = FPDF()
             pdf.set_auto_page_break(auto=True, margin=20)
@@ -156,37 +154,39 @@ if submitted:
             pdf.rect(0, 0, 210, 60, 'F')
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", "B", 24)
-            pdf.cell(0, 40, clean_chars("PSIHOMETRICNO POROCILO OSEBNOSTI"), align='C', ln=True)
+            pdf.cell(0, 40, clean_chars("PSIHOMETRICNO POROCILO OSEBNOSTI"), align='C', new_x="LMARGIN", new_y="NEXT")
             pdf.ln(30)
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Helvetica", "B", 20)
-            pdf.cell(0, 10, clean_chars(polno_ime), align='C', ln=True)
-            pdf.set_font("Helvetica", "I", 12)
-            pdf.cell(0, 10, "Ekspertna interpretacija vedenjskih preferenc", align='C', ln=True)
+            pdf.cell(0, 10, clean_chars(polno_ime), align='C', new_x="LMARGIN", new_y="NEXT")
             
-            # GRAFIKON
+            # GRAF
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 16)
-            pdf.cell(0, 15, clean_chars("Kvantitativni profil preferenc"), ln=True)
-            pdf.image(graf_z, x=40, y=40, w=130)
+            pdf.cell(0, 15, clean_chars("Kvantitativni profil preferenc"), new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(5)
+            pdf.image(graf_z, x=40, w=130)
             
             # ANALIZA
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 14)
             pdf.set_text_color(0, 112, 192)
-            pdf.cell(0, 15, clean_chars("EKSPERTNA ANALIZA"), ln=True)
+            pdf.cell(0, 15, clean_chars("EKSPERTNA ANALIZA"), new_x="LMARGIN", new_y="NEXT")
             pdf.set_text_color(0, 0, 0)
+            pdf.ln(5)
             
             for line in ai_text.split('\n'):
-                if line.strip():
-                    if line.strip().isupper(): # Naslov poglavja
+                line = line.strip()
+                if line:
+                    if line.isupper():
                         pdf.ln(4)
                         pdf.set_font("Helvetica", "B", 12)
-                        pdf.cell(0, 10, clean_chars(line.strip()), ln=True)
+                        pdf.multi_cell(0, 8, clean_chars(line), new_x="LMARGIN", new_y="NEXT")
                         pdf.set_font("Helvetica", "", 11)
                     else:
-                        pdf.multi_cell(0, 7, clean_chars(line.strip()))
+                        pdf.multi_cell(0, 7, clean_chars(line), new_x="LMARGIN", new_y="NEXT")
+                        pdf.ln(1)
             
             pdf_out = bytes(pdf.output())
-            st.success("Analiza je bila uspešno generirana.")
-            st.download_button("📥 Prenesi PDF poročilo", pdf_out, f"Psihometricni_Profil_{polno_ime}.pdf")
+            st.success("Končano!")
+            st.download_button("📥 Prenesi PDF", pdf_out, f"Profil_{polno_ime}.pdf")
