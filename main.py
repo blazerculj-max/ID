@@ -2,33 +2,10 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 import random
-from fpdf import FPDF
-import smtplib
-from email.message import EmailMessage # Sodobnejši in varnejši način
-import os
-import re
-
-# --- POMOŽNE FUNKCIJE ---
-def clean_all(text):
-    """Odstrani trde presledke in šumnike za PDF ter ASCII omejitve."""
-    if not text:
-        return ""
-    # Odstrani nevidne trde presledke (\xa0) in jih zamenja z navadnimi
-    text = text.replace('\xa0', ' ').strip()
-    # Zamenja šumnike za PDF (fpdf2 Helvetica fix)
-    mapping = {
-        "č": "c", "š": "s", "ž": "z", 
-        "Č": "C", "Š": "S", "Ž": "Z"
-    }
-    for k, v in mapping.items():
-        text = text.replace(k, v)
-    return text
+from streamlit_gsheets import GSheetsConnection
+from datetime import datetime
 
 # --- KONFIGURACIJA ---
-EMAIL_SENDER = "blazerculj@gmail.com"
-EMAIL_PASSWORD = "hsmq lbkk huny bfdk" 
-EMAIL_RECEIVER = "blazerculj@gmail.com"
-
 COLORS_MAP = {
     "Cool Blue": "#0070C0", "Fiery Red": "#FF0000",
     "Earth Green": "#00B050", "Sunshine Yellow": "#FFFF00"
@@ -40,7 +17,7 @@ OPPOSITES = {
 OPTIONS = ["L", "1", "2", "3", "4", "5", "M"]
 SCORE_MAP = {"L": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "M": 6}
 
-# 15 NOVIH SKLOPOV
+# 15 SKLOPOV VPRAŠANJ
 raw_questions = [
     {"B": "Sistematičen in dosleden", "R": "Neposreden in prodoren", "G": "Razumevajoč in ustrežljiv", "Y": "Živahen in komunikativen"},
     {"B": "Objektiven opazovalec", "R": "Močan in neodvisen", "G": "Zanesljiv sopotnik", "Y": "Navdihujoč govorec"},
@@ -61,9 +38,12 @@ raw_questions = [
 
 st.set_page_config(page_title="Insights Discovery - Blaž", layout="centered")
 
+# Povezava z Google Sheets
+conn = st.connection("gsheets", type=GSheetsConnection)
+
 st.title("🌈 Insights Discovery Profiler")
-ime_vnos = st.text_input("Ime")
-priimek_vnos = st.text_input("Priimek")
+ime = st.text_input("Ime")
+priimek = st.text_input("Priimek")
 
 if 'shuffled_items' not in st.session_state:
     order = []
@@ -82,63 +62,46 @@ with st.form("insights_form"):
             all_user_inputs.append((color, SCORE_MAP[val]))
         st.divider()
     
-    submitted = st.form_submit_button("IZRAČUNAJ IN POŠLJI PROFIL")
+    submitted = st.form_submit_button("ODDAJ IN IZRAČUNAJ PROFIL")
 
 if submitted:
-    if not ime_vnos or not priimek_vnos:
+    if not ime or not priimek:
         st.error("Prosim, vnesite ime in priimek!")
     else:
-        # Čiščenje za varno pošiljanje
-        ime = clean_all(ime_vnos)
-        priimek = clean_all(priimek_vnos)
-
         # 1. IZRAČUN
         conscious = {c: sum([score for color, score in all_user_inputs if color == c]) / 15 for c in COLORS_MAP}
         less_conscious = {c: 6.0 - conscious[OPPOSITES[c]] for c in COLORS_MAP}
 
-        # 2. PDF GENERIRANJE
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Helvetica", "B", 25)
-        pdf.cell(0, 60, "Insights Discovery Osebni Profil", new_x="LMARGIN", new_y="NEXT", align='C')
-        pdf.set_font("Helvetica", "", 18)
-        pdf.cell(0, 20, f"Pripravljeno za: {ime} {priimek}", new_x="LMARGIN", new_y="NEXT", align='C')
-        
-        # Strani
-        for title, data in [("Zavedna Persona", conscious), ("Nezavedna Persona", less_conscious)]:
-            pdf.add_page()
-            pdf.set_font("Helvetica", "B", 16)
-            pdf.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT")
-            pdf.set_font("Helvetica", "", 12)
-            pdf.ln(5)
-            for c, v in data.items():
-                pdf.cell(0, 10, f"- {c}: {round(v, 2)} od 6.00", new_x="LMARGIN", new_y="NEXT")
-
-        safe_filename = f"{ime}_{priimek}.pdf".replace(" ", "_")
-        pdf.output(safe_filename)
-
-        # 3. POŠILJANJE (Z uporabo EmailMessage za avtomatski UTF-8)
+        # 2. SHRANJEVANJE V GOOGLE SHEETS
         try:
-            msg = EmailMessage()
-            msg['Subject'] = f"Nov Insights Profil: {ime} {priimek}"
-            msg['From'] = EMAIL_SENDER
-            msg['To'] = EMAIL_RECEIVER
-            msg.set_content(f"Pozdravljen Blaž,\n\nV priponki je PDF profil za {ime} {priimek}.")
-
-            with open(safe_filename, 'rb') as f:
-                file_data = f.read()
-                msg.add_attachment(
-                    file_data,
-                    maintype='application',
-                    subtype='pdf',
-                    filename=safe_filename
-                )
-
-            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-                smtp.login(EMAIL_SENDER, EMAIL_PASSWORD)
-                smtp.send_message(msg)
+            # Priprava nove vrstice za tabelo
+            new_entry = {
+                "Ime": ime,
+                "Priimek": priimek,
+                "Datum": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+                "B_Zavedno": round(conscious["Cool Blue"], 2),
+                "R_Zavedno": round(conscious["Fiery Red"], 2),
+                "G_Zavedno": round(conscious["Earth Green"], 2),
+                "Y_Zavedno": round(conscious["Sunshine Yellow"], 2),
+                "B_Nezavedno": round(less_conscious["Cool Blue"], 2),
+                "R_Nezavedno": round(less_conscious["Fiery Red"], 2),
+                "G_Nezavedno": round(less_conscious["Earth Green"], 2),
+                "Y_Nezavedno": round(less_conscious["Sunshine Yellow"], 2)
+            }
             
-            st.success(f"Profil {safe_filename} je uspešno poslan!")
-            os.remove(safe_filename)
+            # Branje obstoječih podatkov
+            existing_data = conn.read(worksheet="Sheet1")
+            updated_df = pd.concat([existing_data, pd.DataFrame([new_entry])], ignore_index=True)
+            
+            # Posodobitev tabele
+            conn.update(worksheet="Sheet1", data=updated_df)
+            st.success("Vaši rezultati so varno shranjeni v bazi.")
         except Exception as e:
-            st.error(f"Napaka pri pošiljanju: {e}")
+            st.warning(f"Podatki niso bili shranjeni v bazo, vendar jih vidite spodaj: {e}")
+
+        # 3. PRIKAZ REZULTATOV NA EKRANU (Insights Grafi)
+        st.header(f"Rezultat za {ime} {priimek}")
+        
+        # Tukaj bova kasneje dodala še grafe, ki sva jih imela prej
+        st.write("Vaše zavedne vrednosti:", conscious)
+        st.write("Vaše nezavedne vrednosti:", less_conscious)
