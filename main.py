@@ -6,37 +6,29 @@ from openai import OpenAI
 import io
 import unicodedata
 
-# --- IZBOLJŠANA FUNKCIJA ZA ČIŠČENJE BESEDILA ---
+# --- 1. KONFIGURACIJA IN ČIŠČENJE ---
 def clean_chars(text):
-    if text is None:
-        return ""
-    # Najprej normaliziramo Unicode (pretvori npr. posebne narekovaje v navadne)
+    if text is None: return ""
     text = unicodedata.normalize('NFKD', text)
-    # Ročna zamenjava šumnikov in pogostih problematičnih znakov
     mapping = {
-        "č": "c", "š": "s", "ž": "z", 
-        "Č": "C", "Š": "S", "Ž": "Z",
-        "\xa0": " ", "–": "-", "—": "-", 
-        "“": "\"", "”": "\"", "‘": "'", "’": "'"
+        "č": "c", "š": "s", "ž": "z", "Č": "C", "Š": "S", "Ž": "Z",
+        "\xa0": " ", "–": "-", "—": "-", "“": "\"", "”": "\"", "‘": "'", "’": "'"
     }
     for k, v in mapping.items():
         text = text.replace(k, v)
-    # Odstranimo vse znake, ki niso ASCII (varnostna mreža)
     return text.encode("ascii", "ignore").decode("ascii")
 
-# --- PRODAJNI PSIHOMETRIČNI MASTER PROMPT ---
+# --- 2. MASTER PROMPT (PRODAJNI STROKOVNJAK) ---
 MASTER_SYSTEM_PROMPT = """
-Ti si vrhunski prodajni coach in strokovnjak za psihometrijo. Tvoja naloga je "prevesti" podatke v privlačen, razumljiv in prodajen jezik.
-
-NAVODILA ZA VSEBINO:
-1. JEZIK: Uporabljaj pogovorni, razumljiv ton. Izogibaj se tehničnemu žargonu in barvam (ne piši "modra energija").
-2. BARNUMOVI STAVKI: Uporabljaj prepričljive formulacije, ki stranko navdušijo nad njenim potencialom.
-3. PRODAJNI STIL: Analiziraj, kako oseba prepričuje in gradi zaupanje.
-4. PLUSI IN IZZIVI: Navedi konkretne prednosti in jasna področja za izboljšavo.
-5. FORMAT: Naslove poglavij piši z VELIKIMI ČRKAMI. Ne uporabljaj znakov ### ali **.
+Ti si vrhunski prodajni coach in psihometrik. Tvoja naloga je interpretirati podatke v prepričljiv, 
+razumljiv in prodajen jezik (uporabljaj Barnumove stavke).
+NAVODILA:
+1. NE UPORABLJAJ besednih zvez kot so "barvne energije", "modra", "rdeča" itd.
+2. UPORABLJAJ strokovne termine: "direktivni slog", "analitična rigidnost", "ekspresivna komunikacija".
+3. STRUKTURA: Naslovi naj bodo z VELIKIMI ČRKAMI. Uporabi bogate alineje (bullet points).
+4. POGLAVJA: PRODAJNI STIL, MOČNE TOČKE (PLUSI), IZZIVI ZA RAZVOJ, DELOVANJE POD PRITISKOM.
 """
 
-# --- KONFIGURACIJA ---
 COLORS_MAP = {"Cool Blue": "#0070C0", "Fiery Red": "#FF0000", "Earth Green": "#00B050", "Sunshine Yellow": "#FFFF00"}
 OPPOSITES = {"Fiery Red": "Earth Green", "Earth Green": "Fiery Red", "Cool Blue": "Sunshine Yellow", "Sunshine Yellow": "Cool Blue"}
 OPTIONS = ["L", "1", "2", "3", "4", "5", "M"]
@@ -44,16 +36,12 @@ SCORE_MAP = {"L": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "M": 6}
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-def generiraj_prodajni_profil(ime, conscious, less_conscious, coaching_txt):
-    user_content = f"""
-    Sestavi prodajni psihološki profil za: {ime}.
-    Rezultati (0-6): {conscious}. Manj zavedno: {less_conscious}.
-    Vključi poglavja: PRODAJNI STIL, PLUSI, RAZVOJNA PODROČJA in {coaching_txt}.
-    """
+# --- 3. FUNKCIJE ZA ANALIZO IN GRAFIKO ---
+def generiraj_ai_vsebino(ime, conscious, less_conscious, coaching_txt):
+    user_content = f"Sestavi profil za: {ime}. Zavedno: {conscious}. Manj zavedno: {less_conscious}. Dodatno: {coaching_txt}"
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=[{"role": "system", "content": MASTER_SYSTEM_PROMPT},
-                  {"role": "user", "content": user_content}],
+        messages=[{"role": "system", "content": MASTER_SYSTEM_PROMPT}, {"role": "user", "content": user_content}],
         temperature=0.7
     )
     return response.choices[0].message.content
@@ -70,26 +58,34 @@ def ustvari_graf(data, title):
     buf.seek(0)
     return buf
 
-# --- UI APPLIKACIJE ---
-st.set_page_config(page_title="Sales Psychometric Expert", layout="wide")
-
+# --- 4. MODEREN VIZUALNI STIL (CSS) ---
+st.set_page_config(page_title="Pro Profiler", layout="wide")
 st.markdown("""
     <style>
-    div.row-widget.stRadio > div { flex-direction: row; justify-content: flex-start; gap: 10px; }
-    .instruction-box { background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 5px solid #28a745; margin-bottom: 25px; }
+    .stApp { background: linear-gradient(to bottom, #fdfdfd, #f0f2f6); }
+    .instruction-box { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-left: 6px solid #0070C0; margin-bottom: 30px; }
+    div[data-testid="stVerticalBlock"] > div:has(div.stRadio) {
+        background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid #eee; margin-bottom: 15px;
+    }
+    .stButton>button { width: 100%; border-radius: 30px; height: 3.5em; background-color: #0070C0; color: white; font-weight: bold; border: none; box-shadow: 0 4px 12px rgba(0,112,192,0.3); transition: 0.3s; }
+    .stButton>button:hover { background-color: #005a9e; transform: translateY(-2px); }
+    div.row-widget.stRadio > div { flex-direction: row; justify-content: flex-start; gap: 12px; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🚀 Prodajni Psihometrični Profiler")
+# --- 5. UI ZASLON ---
+st.title("🛡️ Profesionalni Psihometrični Profiler")
 
 st.markdown("""
 <div class="instruction-box">
-    <h3>📝 Navodila za vnos</h3>
-    <p>Ocenite trditve (L do M) glede na to, kako močno veljajo za vas v delovnem okolju.</p>
+    <h3>💡 Kako izpolniti vprašalnik?</h3>
+    <p>Pri vsakem vprašanju so štiri trditve. Za vsako trditev določite stopnjo ujemanja:</p>
+    <b>L (Najmanj)</b> - to vas sploh ne opisuje | <b>M (Najbolj)</b> - to ste popolnoma vi.<br>
+    <i>Bodite spontani in izhajajte iz svojega naravnega delovanja v službi.</i>
 </div>
 """, unsafe_allow_html=True)
 
-polno_ime = st.text_input("Ime in priimek stranke", placeholder="Janez Novak")
+polno_ime = st.text_input("Ime in priimek stranke", placeholder="Vnesite polno ime za PDF...")
 
 # 15 Vprašanj
 raw_questions = [
@@ -113,38 +109,38 @@ raw_questions = [
 if 'shuffled' not in st.session_state:
     st.session_state.shuffled = [[(c, q[k]) for c, k in zip(COLORS_MAP.keys(), ["B","R","G","Y"])] for q in raw_questions]
 
-with st.form("main_form"):
+with st.form("insights_form"):
     all_inputs = []
     for i, items in enumerate(st.session_state.shuffled):
-        with st.container(border=True):
-            st.markdown(f"#### Vprašanje {i+1} od 15")
-            for color, text in items:
-                col_t, col_r = st.columns([1, 2])
-                with col_t: st.markdown(f"{text}")
-                with col_r:
-                    val = st.radio(f"R_{i}_{color}", OPTIONS, index=1, horizontal=True, key=f"q_{i}_{color}", label_visibility="collapsed")
-                    all_inputs.append((color, SCORE_MAP[val]))
+        st.markdown(f"#### Vprašanje {i+1} od 15")
+        for color, text in items:
+            col_t, col_r = st.columns([1, 2])
+            with col_t: st.markdown(f"**{text}**")
+            with col_r:
+                val = st.radio(f"R_{i}_{color}", OPTIONS, index=1, horizontal=True, key=f"q_{i}_{color}", label_visibility="collapsed")
+                all_inputs.append((color, SCORE_MAP[val]))
     
     st.divider()
+    st.subheader("🎯 Izbira analitičnih modulov")
     c1, c2 = st.columns(2)
     with c1:
-        stres = st.checkbox("Odziv v stresnih situacijah", value=True)
-        vodenje = st.checkbox("Nasveti za vodjo")
+        stres = st.checkbox("Analiza pod pritiskom", value=True)
+        vodenje = st.checkbox("Slog vodenja")
     with c2:
         pege = st.checkbox("Slepe pege")
-        tim = st.checkbox("Dinamika v timu")
+        tim = st.checkbox("Dinamika tima")
     
-    submitted = st.form_submit_button("USTVARI PRODAJNI PDF")
+    submitted = st.form_submit_button("GENERIRAJ PROFESIONALNO POROČILO")
 
 if submitted:
     if not polno_ime:
-        st.error("Prosim, vnesite ime stranke.")
+        st.error("Vnesite ime!")
     else:
         conscious = {c: sum([s for col, s in all_inputs if col == c]) / 15 for c in COLORS_MAP}
         less_conscious = {c: 6.0 - conscious[OPPOSITES[c]] for c in COLORS_MAP}
         
-        with st.spinner("Genie pripravlja poročilo..."):
-            ai_text = generiraj_prodajni_profil(polno_ime, conscious, less_conscious, "Stres, Vodenje, Slepe pege, Tim")
+        with st.spinner("Pripravljam premium PDF..."):
+            ai_text = generiraj_ai_vsebino(polno_ime, conscious, less_conscious, "Stres, Vodenje, Slepe pege, Tim")
             graf_z = ustvari_graf(conscious, "Profil preferenc")
             
             pdf = FPDF()
@@ -152,42 +148,36 @@ if submitted:
             
             # NASLOVNICA
             pdf.add_page()
-            pdf.set_fill_color(40, 167, 69)
+            pdf.set_fill_color(0, 112, 192)
             pdf.rect(0, 0, 210, 60, 'F')
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Helvetica", "B", 24)
-            pdf.cell(0, 40, clean_chars("PRODAJNI PROFIL OSEBNOSTI"), align='C', new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(30)
-            pdf.set_text_color(0, 0, 0)
-            pdf.set_font("Helvetica", "B", 20)
+            pdf.cell(0, 40, clean_chars("PSIHOMETRICNA ANALIZA OSEBNOSTI"), align='C', new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(30); pdf.set_text_color(0, 0, 0); pdf.set_font("Helvetica", "B", 22)
             pdf.cell(0, 10, clean_chars(polno_ime), align='C', new_x="LMARGIN", new_y="NEXT")
             
             # GRAF
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 16)
-            pdf.cell(0, 15, clean_chars("Vizualni povzetek"), new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 15, clean_chars("Kvantitativni profil preferenc"), new_x="LMARGIN", new_y="NEXT")
             pdf.image(graf_z, x=40, w=130)
             
             # ANALIZA
             pdf.add_page()
-            pdf.set_font("Helvetica", "B", 14)
-            pdf.set_text_color(40, 167, 69)
+            pdf.set_font("Helvetica", "B", 14); pdf.set_text_color(0, 112, 192)
             pdf.cell(0, 15, clean_chars("EKSPERTNA INTERPRETACIJA"), new_x="LMARGIN", new_y="NEXT")
-            pdf.set_text_color(0, 0, 0)
-            pdf.ln(5)
+            pdf.set_text_color(0, 0, 0); pdf.ln(5)
             
             for line in ai_text.split('\n'):
                 line = line.strip()
                 if line:
                     if line.isupper():
-                        pdf.ln(4)
-                        pdf.set_font("Helvetica", "B", 12)
+                        pdf.ln(4); pdf.set_font("Helvetica", "B", 12)
                         pdf.multi_cell(0, 8, clean_chars(line), new_x="LMARGIN", new_y="NEXT")
                         pdf.set_font("Helvetica", "", 11)
                     else:
                         pdf.multi_cell(0, 7, clean_chars(line), new_x="LMARGIN", new_y="NEXT")
-                        pdf.ln(1)
             
             pdf_out = bytes(pdf.output())
-            st.success("Uspešno!")
+            st.success("Vaše poročilo je pripravljeno!")
             st.download_button("📥 Prenesi PDF", pdf_out, f"Profil_{polno_ime}.pdf")
