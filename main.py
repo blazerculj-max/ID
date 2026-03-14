@@ -3,9 +3,12 @@ import plotly.graph_objects as go
 import pandas as pd
 import random
 from fpdf import FPDF
+from openai import OpenAI
+from datetime import datetime
 
-# --- POMOŽNA FUNKCIJA ZA ŠUMNIK ---
+# --- POMOŽNA FUNKCIJA ZA ČIŠČENJE ---
 def clean_chars(text):
+    """Odstrani šumnike in trde presledke za PDF motor."""
     mapping = {"č": "c", "š": "s", "ž": "z", "Č": "C", "Š": "S", "Ž": "Z", "\xa0": " "}
     for k, v in mapping.items():
         text = text.replace(k, v)
@@ -23,14 +26,36 @@ OPPOSITES = {
 OPTIONS = ["L", "1", "2", "3", "4", "5", "M"]
 SCORE_MAP = {"L": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "M": 6}
 
-# Profesionalni Insights opisi za PDF
-INSIGHTS_DESCS = {
-    "Cool Blue": "Cool Blue (Snezno modra): Vase vedenje je objektivno, analiticno in preudarno. Cenite dejstva, tocnost in logiko.",
-    "Fiery Red": "Fiery Red (Ognjeno rdeca): Ste usmerjeni k rezultatom, odlocni in mocni. Vase vedenje je neposredno in aktivno.",
-    "Earth Green": "Earth Green (Zemeljsko zelena): Vase vedenje je skrbno, harmonicno in potrpezljivo. Cenite odnose in osebne vrednote.",
-    "Sunshine Yellow": "Sunshine Yellow (Soncno rumena): Ste druzabni, navduseni in optimisticni. Vase vedenje je ustvarjalno in dinamicno."
-}
+# Inicializacija OpenAI odjemalca
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
+def generiraj_ai_interpretacijo(ime, conscious, less_conscious):
+    """Klic Genie-ja za strokovno interpretacijo profila."""
+    prompt = f"""
+    Ti si Insights Discovery strokovnjak. Ustvari kratek osebni profil za osebo: {ime}.
+    Zavedne energije (0-6): {conscious}.
+    Manj zavedne energije (0-6): {less_conscious}.
+    
+    Navodila:
+    1. Uporabi strokovno terminologijo (npr. 'Reformatorski direktor', 'Koordinacijski opazovalec', 'Inspiracijski motivator').
+    2. Na podlagi razmerja energij določi prevladujoč tip.
+    3. Napiši tri poglavja: 
+       - Osebni stil (kratek opis vedenja)
+       - Interakcija z drugimi (kako oseba komunicira)
+       - Predlogi za razvoj (kaj bi bilo dobro optimizirati).
+    Bodi profesionalen in spodbuden.
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": "Ti si Insights Discovery svetovalec Genie."},
+                      {"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Interpretacija trenutno ni na voljo. ({e})"
+
+# --- VPRAŠALNIK (15 SKLOPOV) ---
 raw_questions = [
     {"B": "Sistematičen in dosleden", "R": "Neposreden in prodoren", "G": "Razumevajoč in ustrežljiv", "Y": "Živahen in komunikativen"},
     {"B": "Objektiven opazovalec", "R": "Močan in neodvisen", "G": "Zanesljiv sopotnik", "Y": "Navdihujoč govorec"},
@@ -49,11 +74,11 @@ raw_questions = [
     {"B": "Fokusiran na proces", "R": "Fokusiran na zmago", "G": "Fokusiran na ljudi", "Y": "Fokusiran na prihodnost"}
 ]
 
-st.set_page_config(page_title="Insights Discovery - Blaž", layout="centered")
+st.set_page_config(page_title="Insights Discovery - Genie AI", layout="centered")
 
-st.title("🌈 Insights Discovery Profiler")
-ime = st.text_input("Ime")
-priimek = st.text_input("Priimek")
+st.title("🌈 Insights Discovery AI Profiler")
+ime_vnos = st.text_input("Ime")
+priimek_vnos = st.text_input("Priimek")
 
 if 'shuffled_items' not in st.session_state:
     order = []
@@ -70,73 +95,70 @@ with st.form("insights_form"):
         for idx, (color, text) in enumerate(items):
             val = st.radio(f"**{text}**", options=OPTIONS, index=1, horizontal=True, key=f"q_{i}_{color}")
             all_user_inputs.append((color, SCORE_MAP[val]))
-    submitted = st.form_submit_button("IZRAČUNAJ MOJ PROFIL")
+    submitted = st.form_submit_button("USTVARI MOJ AI PROFIL")
 
 if submitted:
-    if not ime or not priimek:
+    if not ime_vnos or not priimek_vnos:
         st.error("Prosim, vnesite ime in priimek!")
     else:
+        # 1. IZRAČUN
         conscious = {c: sum([score for color, score in all_user_inputs if color == c]) / 15 for c in COLORS_MAP}
         less_conscious = {c: 6.0 - conscious[OPPOSITES[c]] for c in COLORS_MAP}
 
-        st.success("Vaša analiza je končana!")
+        with st.spinner('Genie pripravlja vašo interpretacijo...'):
+            ai_interpretacija = generiraj_ai_interpretacijo(ime_vnos, conscious, less_conscious)
 
-        # --- PDF GENERIRANJE ---
+        # 2. VIZUALIZACIJA NA EKRANU
+        st.header(f"Insights Discovery Poročilo: {ime_vnos} {priimek_vnos}")
+        
+        def draw_bar_chart(data, title):
+            return go.Figure(go.Bar(
+                x=list(data.keys()), y=list(data.values()),
+                marker_color=[COLORS_MAP[c] for c in data.keys()],
+                text=[f"{v:.2f}" for v in data.values()], textposition='auto'
+            )).update_layout(title=title, yaxis=dict(range=[0, 6]), template="plotly_white", height=400)
+
+        c1, c2 = st.columns(2)
+        with c1: st.plotly_chart(draw_bar_chart(conscious, "Zavedna Persona"), use_container_width=True)
+        with c2: st.plotly_chart(draw_bar_chart(less_conscious, "Manj zavedna Persona"), use_container_width=True)
+
+        st.markdown("### Strokovna interpretacija (Genie AI)")
+        st.write(ai_interpretacija)
+
+        # 3. PDF GENERIRANJE
         pdf = FPDF()
         
-        # 1. STRAN: Naslovnica v slogu Insights
+        # Naslovnica
         pdf.add_page()
-        pdf.set_font("Helvetica", "B", 26)
-        pdf.cell(0, 80, clean_chars("Insights Discovery"), align='C', new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "B", 20)
-        pdf.cell(0, 10, clean_chars("Osebni profil"), align='C', new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "B", 25)
+        pdf.cell(0, 60, "Insights Discovery", align='C', new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "B", 18)
+        pdf.cell(0, 10, "Osebni profil (Foundation)", align='C', new_x="LMARGIN", new_y="NEXT")
         pdf.ln(20)
         pdf.set_font("Helvetica", "", 16)
-        pdf.cell(0, 10, clean_chars(f"{ime} {priimek}"), align='C', new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "I", 12)
-        pdf.cell(0, 10, clean_chars("Temeljno poglavje"), align='C', new_x="LMARGIN", new_y="NEXT")
-
-        # 2. STRAN: Uvod v barvne energije
+        pdf.cell(0, 10, clean_chars(f"{ime_vnos} {priimek_vnos}"), align='C', new_x="LMARGIN", new_y="NEXT")
+        
+        # AI poglavje
         pdf.add_page()
         pdf.set_font("Helvetica", "B", 16)
-        pdf.cell(0, 15, clean_chars("Vasa zavedna persona"), new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 15, clean_chars("Vasa osebna interpretacija"), new_x="LMARGIN", new_y="NEXT")
         pdf.set_font("Helvetica", "", 11)
-        pdf.multi_cell(0, 8, clean_chars("Zavedna persona predstavlja stil vedenja, ki ga namenoma izbirate in ga kazete v svojem delovnem okolju. Spodaj so vase vrednosti energij na lestvici od 0 do 6:"))
-        pdf.ln(5)
-        for c, v in conscious.items():
-            pdf.set_font("Helvetica", "B", 12)
-            pdf.cell(0, 8, clean_chars(f"{c}: {round(v, 2)}"), new_x="LMARGIN", new_y="NEXT")
-            pdf.set_font("Helvetica", "", 10)
-            pdf.multi_cell(0, 6, clean_chars(INSIGHTS_DESCS[c]))
-            pdf.ln(2)
-
-        # 3. STRAN: Manj zavedna persona
+        pdf.multi_cell(0, 8, clean_chars(ai_interpretacija))
+        
+        # Grafični podatki
         pdf.add_page()
         pdf.set_font("Helvetica", "B", 16)
-        pdf.cell(0, 15, clean_chars("Vasa manj zavedna persona"), new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "", 11)
-        pdf.multi_cell(0, 8, clean_chars("Manj zavedna persona odraza vas naravni slog in instinktivne odzive, ko niste pod pritiskom okolice."))
-        pdf.ln(10)
-        for c, v in less_conscious.items():
-            pdf.cell(0, 8, clean_chars(f"{c}: {round(v, 2)} / 6.00"), border="B", new_x="LMARGIN", new_y="NEXT")
-
-        # 4. STRAN: Preference Flow
-        pdf.add_page()
-        pdf.set_font("Helvetica", "B", 16)
-        pdf.cell(0, 15, clean_chars("Preference Flow"), new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "", 11)
-        pdf.multi_cell(0, 8, clean_chars("Preference Flow prikazuje razliko med vaso naravno energijo in energijo, ki jo kazete navzven. Pozitivna vrednost pomeni povecano zavestno rabo energije."))
-        pdf.ln(5)
+        pdf.cell(0, 15, clean_chars("Vrednosti barvnih energij"), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 12)
         for c in COLORS_MAP:
-            diff = conscious[c] - less_conscious[c]
-            pdf.cell(0, 10, clean_chars(f"{c}: Premik {round(diff, 2)}"), new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 10, clean_chars(f"{c}: Zavedno {round(conscious[c], 2)} | Manj zavedno {round(less_conscious[c], 2)}"), new_x="LMARGIN", new_y="NEXT")
 
         pdf_bytes = bytes(pdf.output())
         
         st.divider()
         st.download_button(
-            label="📥 Prenesi PDF Osebni profil",
+            label="📥 Prenesi celoten PDF profil",
             data=pdf_bytes,
-            file_name=f"Insights_{ime}_{priimek}.pdf",
+            file_name=f"Insights_{ime_vnos}_{priimek_vnos}.pdf",
             mime="application/pdf"
         )
