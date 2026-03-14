@@ -12,7 +12,7 @@ import os
 
 # --- KONFIGURACIJA ---
 EMAIL_SENDER = "blazerculj@gmail.com"
-EMAIL_PASSWORD = "hsmq lbkk huny bfdk" # <--- SEM VPISI GESLO
+EMAIL_PASSWORD = "hsmq lbkk huny bfdk" # <--- SEM VPISI SVOJE GESLO ZA APLIKACIJE
 EMAIL_RECEIVER = "blazerculj@gmail.com"
 
 COLORS_MAP = {
@@ -48,8 +48,8 @@ raw_questions = [
 st.set_page_config(page_title="Insights Discovery - 15", layout="centered")
 
 st.title("🌈 Insights Discovery Profiler")
-ime = st.text_input("Vaše ime")
-priimek = st.text_input("Vaš priimek")
+ime = st.text_input("Ime")
+priimek = st.text_input("Priimek")
 
 if 'shuffled_items' not in st.session_state:
     order = []
@@ -74,11 +74,16 @@ if submitted:
     if not ime or not priimek:
         st.error("Prosim, vpišite ime in priimek!")
     else:
-        # IZRAČUN (Povprečje na 15 vprašanj)
-        conscious = {c: sum([score for color, score in all_user_inputs if color == c]) / 15 for c in COLORS_MAP}
+        # 1. IZRAČUN
+        conscious = {c: 0 for c in COLORS_MAP}
+        for color, score in all_user_inputs:
+            conscious[color] += score
+        for c in conscious:
+            conscious[c] = conscious[c] / 15
+
         less_conscious = {c: 6.0 - conscious[OPPOSITES[c]] for c in COLORS_MAP}
 
-        # PDF GENERIRANJE
+        # 2. PDF GENERIRANJE
         pdf = FPDF()
         pdf.set_auto_page_break(auto=True, margin=15)
         
@@ -94,7 +99,9 @@ if submitted:
         pdf.set_font("Arial", 'B', 16)
         pdf.cell(200, 10, "1. Zavedna Persona (Conscious)", ln=True)
         pdf.set_font("Arial", '', 12)
-        pdf.multi_cell(0, 10, "Zavedna persona predstavlja stil vedenja, ki ga namenoma izbirate in kažeta v svojem delovnem okolju.")
+        pdf.ln(5)
+        pdf.multi_cell(0, 10, "Zavedna persona predstavlja stil vedenja, ki ga namenoma izbirate in kazete v svojem delovnem okolju.")
+        pdf.ln(5)
         for c, v in conscious.items():
             pdf.cell(200, 10, f"- {c}: {round(v, 2)} od 6.00", ln=True)
 
@@ -103,5 +110,52 @@ if submitted:
         pdf.set_font("Arial", 'B', 16)
         pdf.cell(200, 10, "2. Nezavedna Persona (Less Conscious)", ln=True)
         pdf.set_font("Arial", '', 12)
-        pdf.multi_cell(0, 10, "Nezavedna persona odraža vaš naravni odziv, ko niste pod pritiskom ali ko se odzivate instinktivno.")
+        pdf.ln(5)
+        pdf.multi_cell(0, 10, "Nezavedna persona odraza vas naravni odziv, ko niste pod pritiskom ali ko se odzivate instinktivno.")
+        pdf.ln(5)
         for c, v in less_conscious.items():
+            pdf.cell(200, 10, f"- {c}: {round(v, 2)} od 6.00", ln=True)
+
+        # Stran 4: Preference Flow
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(200, 10, "3. Preference Flow (Analiza premika)", ln=True)
+        pdf.set_font("Arial", '', 12)
+        pdf.ln(5)
+        pdf.multi_cell(0, 10, "Prikazuje razliko med vaso naravno energijo in energijo, ki jo kazete navzven.")
+        pdf.ln(5)
+        for c in COLORS_MAP:
+            diff = conscious[c] - less_conscious[c]
+            status = "Poudarjanje" if diff >= 0 else "Zadrzevanje"
+            pdf.cell(200, 10, f"- {c}: Premik {round(diff, 2)} ({status})", ln=True)
+
+        # Shranjevanje PDF
+        clean_name = f"{ime}_{priimek}".replace(" ", "_")
+        filename = f"{clean_name}.pdf"
+        pdf.output(filename)
+
+        # 3. POŠILJANJE
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = EMAIL_SENDER
+            msg['To'] = EMAIL_RECEIVER
+            msg['Subject'] = f"Nov Insights Profil: {ime} {priimek}"
+            msg.attach(MIMEText(f"V priponki je PDF profil za {ime} {priimek}.", 'plain'))
+
+            with open(filename, "rb") as f:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(f.read())
+                encoders.encode_base64(part)
+                part.add_header('Content-Disposition', f"attachment; filename= {filename}")
+                msg.attach(part)
+
+            s = smtplib.SMTP('smtp.gmail.com', 587)
+            s.starttls()
+            s.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            s.send_message(msg)
+            s.quit()
+            
+            st.success(f"Profil {filename} je uspesno poslan!")
+            os.remove(filename)
+        except Exception as e:
+            st.error(f"Napaka pri posiljanju: {e}")
