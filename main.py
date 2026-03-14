@@ -90,11 +90,11 @@ if submitted:
             }
             
             # Branje obstoječih podatkov
-            existing_data = conn.read(worksheet="Sheet1")
+            existing_data = conn.read(worksheet="Insights_Rezultati")
             updated_df = pd.concat([existing_data, pd.DataFrame([new_entry])], ignore_index=True)
             
             # Posodobitev tabele
-            conn.update(worksheet="Sheet1", data=updated_df)
+            conn.update(worksheet="Insights_Rezultati", data=updated_df)
             st.success("Vaši rezultati so varno shranjeni v bazi.")
         except Exception as e:
             st.warning(f"Podatki niso bili shranjeni v bazo, vendar jih vidite spodaj: {e}")
