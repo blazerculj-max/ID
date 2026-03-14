@@ -2,57 +2,46 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 import random
+from fpdf import FPDF
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+import os
 
-# 1. Barvna konfiguracija Insights Discovery
+# --- KONFIGURACIJA E-POŠTE ---
+EMAIL_SENDER = "blazerculj@gmail.com"
+# Tukaj boš moral vpisati "App Password" (glej navodila spodaj)
+EMAIL_PASSWORD = "hsmq lbkk huny bfdk" 
+EMAIL_RECEIVER = "blazerculj@gmail.com"
+
 COLORS_MAP = {
-    "Cool Blue": "#0070C0",
-    "Fiery Red": "#FF0000",
-    "Earth Green": "#00B050",
-    "Sunshine Yellow": "#FFFF00"
+    "Cool Blue": "#0070C0", "Fiery Red": "#FF0000",
+    "Earth Green": "#00B050", "Sunshine Yellow": "#FFFF00"
 }
-
-# Mapiranje nasprotnih barv za nezavedno persono
 OPPOSITES = {
-    "Fiery Red": "Earth Green",
-    "Earth Green": "Fiery Red",
-    "Cool Blue": "Sunshine Yellow",
-    "Sunshine Yellow": "Cool Blue"
+    "Fiery Red": "Earth Green", "Earth Green": "Fiery Red",
+    "Cool Blue": "Sunshine Yellow", "Sunshine Yellow": "Cool Blue"
 }
-
 OPTIONS = ["L", "1", "2", "3", "4", "5", "M"]
 SCORE_MAP = {"L": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "M": 6}
 
-# 2. Vprašalnik (25 sklopov)
-raw_questions = [
-    {"B": "Natančen in premišljen", "R": "Usmerjen v rezultate", "G": "Občutljiv in diplomatski", "Y": "Spodbuja in ceni druge"},
-    {"B": "Zbran in pozoren na detajle", "R": "Nadzorovan in usmerjen", "G": "Mirna in pomirjujoča", "Y": "Odprt in družaben"},
-    {"B": "Jasen in jedrnat", "R": "Neposreden in tekmovalen", "G": "Zvest in prilagodljiv", "Y": "Zgovoren in družaben"},
-    {"B": "Premišljen in analitičen", "R": "Samozavesten in močan", "G": "Vztrajen in potrpežljiv", "Y": "Izraža navdušenje"},
-    {"B": "Razumen in objektiven", "R": "Odločen in močna volja", "G": "Raziskovalen in miren", "Y": "Zagnan in optimističen"},
-    {"B": "Temeljit in precizen", "R": "Robusten in direkten", "G": "Nezahteven in prilagodljiv", "Y": "Vpliven in prepričljiv"},
-    {"B": "Logičen in sistematičen", "R": "Drzen in tekmovalen", "G": "Uravnotežen in ustrežljiv", "Y": "Živahen in igriv"},
-    {"B": "Formalen in zadržan", "R": "Podjeten in hiter", "G": "Topel in iskren", "Y": "Sproščen in zabaven"},
-    {"B": "Skeptičen in previden", "R": "Zahteven in nepopustljiv", "G": "Zanesljiv in konstanten", "Y": "Ekspresiven in živahen"},
-    {"B": "Metodičen in urejen", "R": "Gospodovalen in močan", "G": "Sodelovalen in prijazen", "Y": "Domišljijski in komunikativen"}
-]
-# Dopuni do 25
-if len(raw_questions) < 25:
-    raw_questions = (raw_questions * 3)[:25]
+st.set_page_config(page_title="Insights Discovery Profiler", layout="centered")
 
-st.set_page_config(page_title="Insights Discovery - Blaž", layout="centered")
-
-# CSS za lepši izgled gumbov
-st.markdown("""
-    <style>
-    div[data-testid="stHorizontalBlock"] { background-color: #f9f9f9; padding: 10px; border-radius: 10px; margin-bottom: 10px; }
-    .stRadio > div { flex-direction: row; justify-content: space-around; }
-    </style>
-    """, unsafe_allow_html=True)
-
+# 1. Vnos osebnih podatkov
 st.title("🌈 Insights Discovery Profiler")
-st.write("Izberite vrednost od **L (0)** do **M (6)** za vsako trditev.")
+col_name, col_surname = st.columns(2)
+ime = col_name.text_input("Ime")
+priimek = col_surname.text_input("Priimek")
 
-# Mešanje vprašanj (shranjeno v session_state)
+# --- VPRAŠALNIK (Vseh 25 sklopov - skrajšano za primer, uporabi svoje) ---
+raw_questions = [
+    {"B": "Natančen", "R": "Usmerjen v rezultate", "G": "Diplomatski", "Y": "Navdušen"},
+    # ... (Vključi vseh 25 vprašanj tukaj)
+] * 25
+raw_questions = raw_questions[:25]
+
 if 'shuffled_items' not in st.session_state:
     order = []
     for q in raw_questions:
@@ -65,87 +54,83 @@ with st.form("insights_form"):
     all_user_inputs = []
     for i, items in enumerate(st.session_state.shuffled_items):
         st.subheader(f"Sklop {i+1} od 25")
-        
         for idx, (color, text) in enumerate(items):
-            # Uporaba st.radio horizontalno namesto sliderja
-            val = st.radio(
-                f"**{text}**",
-                options=OPTIONS,
-                index=1, # Privzeto na "1"
-                horizontal=True,
-                key=f"q_{i}_{color}"
-            )
+            val = st.radio(f"**{text}**", options=OPTIONS, index=1, horizontal=True, key=f"q_{i}_{color}")
             all_user_inputs.append((color, SCORE_MAP[val]))
-        st.divider()
     
-    submitted = st.form_submit_button("IZRAČUNAJ MOJ PROFIL")
+    submitted = st.form_submit_button("GENERIRAJ IN POŠLJI PROFIL")
 
 if submitted:
-    # 1. IZRAČUN ZAVEDNE PERSONE (Povprečje)
-    conscious = {c: 0 for c in COLORS_MAP}
-    for color, score in all_user_inputs:
-        conscious[color] += score
-    
-    for c in conscious: conscious[c] /= 25
+    if not ime or not priimek:
+        st.error("Prosim, vnesite ime in priimek!")
+    else:
+        # 2. Izračun
+        conscious = {c: 0 for c in COLORS_MAP}
+        for color, score in all_user_inputs:
+            conscious[color] += score
+        for c in conscious: conscious[c] /= 25
 
-    # 2. IZRAČUN NEZAVEDNE PERSONE (Zrcaljenje)
-    less_conscious = {}
-    for color in COLORS_MAP:
-        opposite_color = OPPOSITES[color]
-        less_conscious[color] = 6.0 - conscious[opposite_color]
+        less_conscious = {c: 6.0 - conscious[OPPOSITES[c]] for c in COLORS_MAP}
 
-    st.balloons()
-    
-    # 3. PRIKAZ GRAFOV (Original Insights Style)
-    def draw_insights_chart(data, title):
-        fig = go.Figure(data=[
-            go.Bar(
-                x=list(data.keys()),
-                y=list(data.values()),
-                marker_color=[COLORS_MAP[c] for c in data.keys()],
-                text=[f"{v:.2f}" for v in data.values()],
-                textposition='outside',
-                cliponaxis=False
-            )
-        ])
-        fig.update_layout(
-            title=title,
-            yaxis=dict(range=[0, 7], title="Energija (0-6)"),
-            template="plotly_white",
-            height=450
-        )
-        return fig
+        # 3. Ustvarjanje PDF dokumenta
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        
+        # Stran 1: Naslovnica
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 24)
+        pdf.cell(200, 60, "Insights Discovery Profil", ln=True, align='C')
+        pdf.set_font("Arial", '', 18)
+        pdf.cell(200, 20, f"Osebno poročilo za: {ime} {priimek}", ln=True, align='C')
+        
+        # Stran 2: Zavedni profil
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(200, 10, "Vaša zavedna persona (Conscious)", ln=True)
+        pdf.set_font("Arial", '', 12)
+        for c, v in conscious.items():
+            pdf.cell(200, 10, f"{c}: {round(v, 2)}", ln=True)
+            
+        # Stran 3: Nezavedni profil
+        pdf.add_page()
+        pdf.cell(200, 10, "Vaša nezavedna persona (Less Conscious)", ln=True)
+        for c, v in less_conscious.items():
+            pdf.cell(200, 10, f"{c}: {round(v, 2)}", ln=True)
 
-    st.header("Rezultati analize")
-    
-    # Zavedna Persona
-    st.plotly_chart(draw_insights_chart(conscious, "Zavedna Persona (Conscious)"), use_container_width=True)
-    
-    # Nezavedna Persona
-    st.plotly_chart(draw_insights_chart(less_conscious, "Nezavedna Persona (Less Conscious)"), use_container_width=True)
+        # Stran 4: Preference Flow
+        pdf.add_page()
+        pdf.cell(200, 10, "Preference Flow (Analiza prilagajanja)", ln=True)
+        for c in COLORS_MAP:
+            diff = conscious[c] - less_conscious[c]
+            pdf.cell(200, 10, f"{c}: Premik {round(diff, 2)}", ln=True)
 
-    # 4. PREFERENCE FLOW (S puščicami/deltami)
-    st.divider()
-    st.subheader("Preference Flow (Prilagajanje)")
-    f_cols = st.columns(4)
-    for i, color in enumerate(COLORS_MAP.keys()):
-        diff = conscious[color] - less_conscious[color]
-        with f_cols[i]:
-            st.markdown(f"<div style='border-bottom: 4px solid {COLORS_MAP[color]}; padding-bottom:5px; font-weight:bold;'>{color}</div>", unsafe_allow_html=True)
-            st.metric(label="Zavedno", value=f"{round(conscious[color], 2)}", delta=f"{round(diff, 2)}")
-            st.caption(f"Nezavedno: {round(less_conscious[color], 2)}")
+        filename = f"{ime}_{priimek}.pdf"
+        pdf.output(filename)
 
-    # 5. RADAR KOLO
-    st.divider()
-    st.subheader("Položaj na kolesu (Zavedni profil)")
-    cat = list(conscious.keys())
-    fig_radar = go.Figure()
-    fig_radar.add_trace(go.Scatterpolar(
-        r=[conscious[c] for c in cat] + [conscious[cat[0]]],
-        theta=cat + [cat[0]],
-        fill='toself',
-        fillcolor='rgba(150, 150, 150, 0.2)',
-        line=dict(color='black', width=2)
-    ))
-    fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 6])), showlegend=False)
-    st.plotly_chart(fig_radar)
+        # 4. Pošiljanje E-pošte
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = EMAIL_SENDER
+            msg['To'] = EMAIL_RECEIVER
+            msg['Subject'] = f"Insights Profil: {ime} {priimek}"
+            
+            body = f"Pozdravljen Blaž,\n\nV priponki je nov Insights profil za osebo {ime} {priimek}."
+            msg.attach(MIMEText(body, 'plain'))
+
+            with open(filename, "rb") as attachment:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(attachment.read())
+                encoders.encode_base64(part)
+                part.add_header('Content-Disposition', f"attachment; filename= {filename}")
+                msg.attach(part)
+
+            server = smtplib.SMTP('smtp.gmail.com', 587)
+            server.starttls()
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.send_message(msg)
+            server.quit()
+
+            st.success(f"Profil za {ime} {priimek} je bil uspešno ustvarjen in poslan na blazerculj@gmail.com!")
+            os.remove(filename) # Počiščimo datoteko s strežnika
+        except Exception as e:
+            st.error(f"Prišlo je do napake pri pošiljanju: {e}")
