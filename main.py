@@ -10,10 +10,9 @@ from email.mime.base import MIMEBase
 from email import encoders
 import os
 
-# --- KONFIGURACIJA E-POŠTE ---
+# --- KONFIGURACIJA ---
 EMAIL_SENDER = "blazerculj@gmail.com"
-# Tukaj boš moral vpisati "App Password" (glej navodila spodaj)
-EMAIL_PASSWORD = "hsmq lbkk huny bfdk" 
+EMAIL_PASSWORD = "hsmq lbkk huny bfdk" # <--- SEM VPISI GESLO
 EMAIL_RECEIVER = "blazerculj@gmail.com"
 
 COLORS_MAP = {
@@ -27,20 +26,30 @@ OPPOSITES = {
 OPTIONS = ["L", "1", "2", "3", "4", "5", "M"]
 SCORE_MAP = {"L": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "M": 6}
 
-st.set_page_config(page_title="Insights Discovery Profiler", layout="centered")
-
-# 1. Vnos osebnih podatkov
-st.title("🌈 Insights Discovery Profiler")
-col_name, col_surname = st.columns(2)
-ime = col_name.text_input("Ime")
-priimek = col_surname.text_input("Priimek")
-
-# --- VPRAŠALNIK (Vseh 25 sklopov - skrajšano za primer, uporabi svoje) ---
+# 15 NOVIH SKLOPOV TRDITEV
 raw_questions = [
-    {"B": "Natančen", "R": "Usmerjen v rezultate", "G": "Diplomatski", "Y": "Navdušen"},
-    # ... (Vključi vseh 25 vprašanj tukaj)
-] * 25
-raw_questions = raw_questions[:25]
+    {"B": "Sistematičen in dosleden", "R": "Neposreden in prodoren", "G": "Razumevajoč in ustrežljiv", "Y": "Živahen in komunikativen"},
+    {"B": "Objektiven opazovalec", "R": "Močan in neodvisen", "G": "Zanesljiv sopotnik", "Y": "Navdihujoč govorec"},
+    {"B": "Logičen in preudaren", "R": "Hiter in odločen", "G": "Prijazen in skrben", "Y": "Sproščen in igriv"},
+    {"B": "Pozoren na podrobnosti", "R": "Usmerjen h končnemu cilju", "G": "Uravnotežen in potrpežljiv", "Y": "Ustvarjalen in optimističen"},
+    {"B": "Analitičen in distanciran", "R": "Energičen in tekmovalen", "G": "Iskren in lojalen", "Y": "Družaben in prepričljiv"},
+    {"B": "Strokovno podkovan", "R": "Drzen pri odločanju", "G": "Uravnotežen in nežen", "Y": "Poln novih idej"},
+    {"B": "Premišljen strateg", "R": "Dinamičen vodja", "G": "Podporen poslušalec", "Y": "Navdušen motivator"},
+    {"B": "Metodičen in urejen", "R": "Avtoritativen in fokisiran", "G": "Diplomatski in miren", "Y": "Priljubljen in odprt"},
+    {"B": "Previdno previden", "R": "Rezultatno zahteven", "G": "Stabilno zanesljiv", "Y": "Zgovorno prijazen"},
+    {"B": "Uraden in zadržan", "R": "Vpliven in hiter", "G": "Topel in miren", "Y": "Duhovit in opazen"},
+    {"B": "Temeljit preučevalec", "R": "Samozavesten akter", "G": "Zvest sodelavec", "Y": "Domišljijski vizionar"},
+    {"B": "Resen in dejstven", "R": "Vztrajen in oster", "G": "Sodelovalen in toleranten", "Y": "Zabaven in prilagodljiv"},
+    {"B": "Umirjen in natančen", "R": "Samostojen in močan", "G": "Skrben za odnose", "Y": "Povezovalen in aktiven"},
+    {"B": "Zbran in analitičen", "R": "Ambiciozen in hiter", "G": "Prilagodljiv in blag", "Y": "Zabaven in zgovoren"},
+    {"B": "Fokusiran na proces", "R": "Fokusiran na zmago", "G": "Fokusiran na ljudi", "Y": "Fokusiran na prihodnost"}
+]
+
+st.set_page_config(page_title="Insights Discovery - 15", layout="centered")
+
+st.title("🌈 Insights Discovery Profiler")
+ime = st.text_input("Vaše ime")
+priimek = st.text_input("Vaš priimek")
 
 if 'shuffled_items' not in st.session_state:
     order = []
@@ -53,84 +62,46 @@ if 'shuffled_items' not in st.session_state:
 with st.form("insights_form"):
     all_user_inputs = []
     for i, items in enumerate(st.session_state.shuffled_items):
-        st.subheader(f"Sklop {i+1} od 25")
+        st.subheader(f"Sklop {i+1} od 15")
         for idx, (color, text) in enumerate(items):
             val = st.radio(f"**{text}**", options=OPTIONS, index=1, horizontal=True, key=f"q_{i}_{color}")
             all_user_inputs.append((color, SCORE_MAP[val]))
+        st.divider()
     
-    submitted = st.form_submit_button("GENERIRAJ IN POŠLJI PROFIL")
+    submitted = st.form_submit_button("IZRAČUNAJ IN POŠLJI PROFIL")
 
 if submitted:
     if not ime or not priimek:
-        st.error("Prosim, vnesite ime in priimek!")
+        st.error("Prosim, vpišite ime in priimek!")
     else:
-        # 2. Izračun
-        conscious = {c: 0 for c in COLORS_MAP}
-        for color, score in all_user_inputs:
-            conscious[color] += score
-        for c in conscious: conscious[c] /= 25
-
+        # IZRAČUN (Povprečje na 15 vprašanj)
+        conscious = {c: sum([score for color, score in all_user_inputs if color == c]) / 15 for c in COLORS_MAP}
         less_conscious = {c: 6.0 - conscious[OPPOSITES[c]] for c in COLORS_MAP}
 
-        # 3. Ustvarjanje PDF dokumenta
+        # PDF GENERIRANJE
         pdf = FPDF()
         pdf.set_auto_page_break(auto=True, margin=15)
         
         # Stran 1: Naslovnica
         pdf.add_page()
-        pdf.set_font("Arial", 'B', 24)
-        pdf.cell(200, 60, "Insights Discovery Profil", ln=True, align='C')
+        pdf.set_font("Arial", 'B', 25)
+        pdf.cell(200, 60, "Insights Discovery Osebni Profil", ln=True, align='C')
         pdf.set_font("Arial", '', 18)
-        pdf.cell(200, 20, f"Osebno poročilo za: {ime} {priimek}", ln=True, align='C')
+        pdf.cell(200, 20, f"Pripravljeno za: {ime} {priimek}", ln=True, align='C')
         
-        # Stran 2: Zavedni profil
+        # Stran 2: Zavedna Persona
         pdf.add_page()
         pdf.set_font("Arial", 'B', 16)
-        pdf.cell(200, 10, "Vaša zavedna persona (Conscious)", ln=True)
+        pdf.cell(200, 10, "1. Zavedna Persona (Conscious)", ln=True)
         pdf.set_font("Arial", '', 12)
+        pdf.multi_cell(0, 10, "Zavedna persona predstavlja stil vedenja, ki ga namenoma izbirate in kažeta v svojem delovnem okolju.")
         for c, v in conscious.items():
-            pdf.cell(200, 10, f"{c}: {round(v, 2)}", ln=True)
-            
-        # Stran 3: Nezavedni profil
+            pdf.cell(200, 10, f"- {c}: {round(v, 2)} od 6.00", ln=True)
+
+        # Stran 3: Nezavedna Persona
         pdf.add_page()
-        pdf.cell(200, 10, "Vaša nezavedna persona (Less Conscious)", ln=True)
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(200, 10, "2. Nezavedna Persona (Less Conscious)", ln=True)
+        pdf.set_font("Arial", '', 12)
+        pdf.multi_cell(0, 10, "Nezavedna persona odraža vaš naravni odziv, ko niste pod pritiskom ali ko se odzivate instinktivno.")
         for c, v in less_conscious.items():
-            pdf.cell(200, 10, f"{c}: {round(v, 2)}", ln=True)
-
-        # Stran 4: Preference Flow
-        pdf.add_page()
-        pdf.cell(200, 10, "Preference Flow (Analiza prilagajanja)", ln=True)
-        for c in COLORS_MAP:
-            diff = conscious[c] - less_conscious[c]
-            pdf.cell(200, 10, f"{c}: Premik {round(diff, 2)}", ln=True)
-
-        filename = f"{ime}_{priimek}.pdf"
-        pdf.output(filename)
-
-        # 4. Pošiljanje E-pošte
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = EMAIL_SENDER
-            msg['To'] = EMAIL_RECEIVER
-            msg['Subject'] = f"Insights Profil: {ime} {priimek}"
-            
-            body = f"Pozdravljen Blaž,\n\nV priponki je nov Insights profil za osebo {ime} {priimek}."
-            msg.attach(MIMEText(body, 'plain'))
-
-            with open(filename, "rb") as attachment:
-                part = MIMEBase('application', 'octet-stream')
-                part.set_payload(attachment.read())
-                encoders.encode_base64(part)
-                part.add_header('Content-Disposition', f"attachment; filename= {filename}")
-                msg.attach(part)
-
-            server = smtplib.SMTP('smtp.gmail.com', 587)
-            server.starttls()
-            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            server.send_message(msg)
-            server.quit()
-
-            st.success(f"Profil za {ime} {priimek} je bil uspešno ustvarjen in poslan na blazerculj@gmail.com!")
-            os.remove(filename) # Počiščimo datoteko s strežnika
-        except Exception as e:
-            st.error(f"Prišlo je do napake pri pošiljanju: {e}")
