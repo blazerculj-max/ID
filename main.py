@@ -20,7 +20,7 @@ def clean_chars(text):
 
 # --- KONFIGURACIJA ---
 EMAIL_SENDER = "blazerculj@gmail.com"
-EMAIL_PASSWORD = "vpisi_svoj_google_app_password" # <--- TUKAJ VPISI SVOJE GESLO
+EMAIL_PASSWORD = "hsmq lbkk huny bfdk" # <--- TUKAJ VPISI SVOJE GESLO
 EMAIL_RECEIVER = "blazerculj@gmail.com"
 
 COLORS_MAP = {
