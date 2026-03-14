@@ -1,8 +1,8 @@
 import streamlit as st
 import plotly.graph_objects as go
-import pandas as pd
+import random
 
-# 1. Nastavitve barvne palete Insights Discovery
+# 1. Barvna shema
 COLORS = {
     "Cool Blue": "#0070C0",
     "Fiery Red": "#FF0000",
@@ -10,81 +10,104 @@ COLORS = {
     "Sunshine Yellow": "#FFFF00"
 }
 
-# 2. Celotna baza vprašanj iz tvojega dokumenta
-vprasalnik = [
-    {"naslov": "Splošni slog", "trditve": {"Zelena": "Občutljiv in diplomatski", "Modra": "Natančen in premišljen", "Rdeča": "Usmerjen v rezultate", "Rumena": "Spodbuja in ceni druge"}},
-    {"naslov": "Osebne lastnosti", "trditve": {"Modra": "Zbran in pozoren na detajle", "Zelena": "Mirna in pomirjujoča", "Rumena": "Odprt in družaben", "Rdeča": "Nadzorovan in usmerjen"}},
-    {"naslov": "Interakcija", "trditve": {"Zelena": "Prijazen in zanesljiv", "Modra": "Zadržan in metodičen", "Rdeča": "Odločen in ciljno usmerjen", "Rumena": "Navdušen in optimističen"}},
-    {"naslov": "Komunikacija", "trditve": {"Rumena": "Zgovoren in družaben", "Modra": "Jasen in jedrnat", "Rdeča": "Neposreden in tekmovalen", "Zelena": "Zvest in prilagodljiv"}},
-    {"naslov": "Delovni pristop", "trditve": {"Rumena": "Izraža upanje in navdušenje", "Rdeča": "Samozavesten in močan", "Modra": "Premišljen in analitičen", "Zelena": "Vztrajen in potrpežljiv"}},
-    # Dodanih še preostalih 10 sklopov na podlagi dokumenta...
+# 2. Mapiranje lestvice v točke
+# L = 0, M = 6, ostalo so vmesne vrednosti
+SCORE_MAP = {
+    "L": 0,
+    "1": 1,
+    "2": 2,
+    "3": 3,
+    "4": 4,
+    "5": 5,
+    "M": 6
+}
+OPTIONS = ["L", "1", "2", "3", "4", "5", "M"]
+
+# 3. Podatki (tukaj vnesi vseh 25 vprašanj iz svojega vira)
+# Pripravil sem strukturo za prvih nekaj, ostalo dopolni po vzorcu
+raw_questions = [
+    {"B": "Natančen in premišljen", "R": "Usmerjen v rezultate", "G": "Občutljiv in diplomatski", "Y": "Spodbuja in ceni druge"},
+    {"B": "Analitičen in objektiven", "R": "Odločen in močan", "G": "Potrpežljiv in razumevajoč", "Y": "Navdušen in komunikativen"},
+    {"B": "Zbran in pozoren na detajle", "R": "Nadzorovan in usmerjen", "G": "Mirna in pomirjujoča", "Y": "Odprt in družaben"},
+    {"B": "Jasen in jedrnat", "R": "Neposreden in tekmovalen", "G": "Zvest in prilagodljiv", "Y": "Zgovoren in družaben"},
+    {"B": "Premišljen in analitičen", "R": "Samozavesten in močan", "G": "Vztrajen in potrpežljiv", "Y": "Izraža navdušenje"},
+    # ... dodaj do 25
 ]
 
-st.set_page_config(page_title="Insights Discovery Profiler", layout="wide")
+# Če jih je manj kot 25, jih za testiranje podvojimo
+if len(raw_questions) < 25:
+    raw_questions = (raw_questions * 5)[:25]
 
-st.title("🌈 Insights Discovery Samoevalvacija")
-st.markdown("V vsakem sklopu razvrstite trditve od **4 (najbolj jaz)** do **1 (najmanj jaz)**. Vsaka ocena se lahko v sklopu uporabi le enkrat.")
+st.set_page_config(page_title="Insights Discovery Profiler", layout="centered")
 
-# Inicializacija točk
-if 'results' not in st.session_state:
-    st.session_state.results = {"Cool Blue": 0, "Fiery Red": 0, "Earth Green": 0, "Sunshine Yellow": 0}
+st.title("🌈 Insights Discovery Vprašalnik")
+st.info("Ocenite trditve: L (najmanj jaz) -> M (najbolj jaz)")
 
-# 3. Izris vprašalnika
-with st.form("quiz_form"):
-    all_scores = {}
-    for i, sklop in enumerate(vprasalnik):
-        st.subheader(f"{i+1}. {sklop['naslov']}")
-        cols = st.columns(4)
-        current_step_scores = {}
+with st.form("insights_form"):
+    user_responses = []
+    
+    for i, q_set in enumerate(raw_questions):
+        st.subheader(f"Sklop {i+1} od 25")
         
-        for j, (color, text) in enumerate(sklop['trditve'].items()):
-            score = cols[j].selectbox(f"{text}", options=[1, 2, 3, 4], key=f"q_{i}_{color}", index=j)
-            current_step_scores[color] = score
+        # Priprava trditev in naključno mešanje (shuffling)
+        items = [
+            ("Cool Blue", q_set["B"]),
+            ("Fiery Red", q_set["R"]),
+            ("Earth Green", q_set["G"]),
+            ("Sunshine Yellow", q_set["Y"])
+        ]
+        random.shuffle(items)
         
-        all_scores[i] = current_step_scores
+        # Prikaz dveh trditev v vrsti za boljšo preglednost na telefonu
+        col1, col2 = st.columns(2)
+        for idx, (color, text) in enumerate(items):
+            target_col = col1 if idx % 2 == 0 else col2
+            with target_col:
+                val = st.select_slider(
+                    text,
+                    options=OPTIONS,
+                    value="1",
+                    key=f"q_{i}_{color}_{idx}"
+                )
+                user_responses.append((color, SCORE_MAP[val]))
         st.divider()
 
-    submitted = st.form_submit_button("IZRAČUNAJ MOJ PROFIL")
+    submit = st.form_submit_button("IZRAČUNAJ MOJ PROFIL")
 
-# 4. Procesiranje in vizualizacija
-if submitted:
-    # Preverjanje validnosti (v vsakem sklopu morajo biti unikatne številke 1,2,3,4)
-    valid = True
-    final_totals = {"Cool Blue": 0, "Fiery Red": 0, "Earth Green": 0, "Sunshine Yellow": 0}
+# 4. Izračun in graf
+if submit:
+    totals = {"Cool Blue": 0, "Fiery Red": 0, "Earth Green": 0, "Sunshine Yellow": 0}
+    for color, points in user_responses:
+        totals[color] += points
+        
+    all_points = sum(totals.values())
     
-    for i, s in all_scores.items():
-        if len(set(s.values())) < 4:
-            st.error(f"Napaka v sklopu {i+1}: Uporabiti morate vse ocene (1, 2, 3 in 4) natanko enkrat!")
-            valid = False
-            break
-        for color, val in s.items():
-            final_totals[color] += val
-
-    if valid:
+    if all_points > 0:
         st.balloons()
-        st.header("Vaš barvni profil")
+        st.header("Vaša barvna energija")
         
         # Izračun procentov
-        total_points = sum(final_totals.values())
-        percentages = {k: (v / total_points) * 100 for k, v in final_totals.items()}
+        percentages = {k: (v / all_points) * 100 for k, v in totals.items()}
         
-        # Radar graf (Insights Wheel simulacija)
+        # Radar Chart
         categories = list(percentages.keys())
+        p_values = list(percentages.values())
+        
         fig = go.Figure()
         fig.add_trace(go.Scatterpolar(
-            r=list(percentages.values()) + [list(percentages.values())[0]],
+            r=p_values + [p_values[0]],
             theta=categories + [categories[0]],
             fill='toself',
-            fillcolor='rgba(168, 168, 168, 0.3)',
+            fillcolor='rgba(180, 180, 180, 0.4)',
             line=dict(color='black', width=2)
         ))
         
-        fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 50])), showlegend=False)
+        fig.update_layout(
+            polar=dict(radialaxis=dict(visible=True, range=[0, max(p_values) + 10])),
+            showlegend=False
+        )
         st.plotly_chart(fig, use_container_width=True)
-
-        # Metrike
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Modra", f"{round(percentages['Cool Blue'])}%", delta="Cool Blue")
-        c2.metric("Rdeča", f"{round(percentages['Fiery Red'])}%", delta="Fiery Red")
-        c3.metric("Zelena", f"{round(percentages['Earth Green'])}%", delta="Earth Green")
-        c4.metric("Rumena", f"{round(percentages['Sunshine Yellow'])}%", delta="Sunshine Yellow")
+        
+        # Rezultati v številkah
+        cols = st.columns(4)
+        for i,
