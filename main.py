@@ -23,13 +23,16 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 def generiraj_ai_profil(polno_ime, conscious, less_conscious, coaching_options):
     pref_flow = {c: round(conscious[c] - less_conscious[c], 2) for c in COLORS_MAP}
     prompt = f"""
-    Ti si Insights Discovery strokovnjak. Ustvari uradni osebni profil za: {polno_ime}.
-    Zavedne energije: {conscious}
-    Manj zavedne energije: {less_conscious}
+    Ti si strokovnjak za Insights Discovery. Ustvari uradni osebni profil za: {polno_ime}.
+    Zavedne energije (0-6): {conscious}
+    Manj zavedne energije (0-6): {less_conscious}
     Preference Flow: {pref_flow}
-    Struktura: Uvod, Osebni slog, Interakcija, Tok preferenc. 
-    Dodaj analizo za: {coaching_options}.
-    Uporabi terminologijo iz uradnih Insights Discovery porocil (npr. Reformatorski direktor).
+    
+    Navodila za vsebino:
+    - Doloci tip (npr. Reformatorski direktor, Inspiracijski motivator).
+    - Opisi osebni slog, interakcijo in tok preferenc.
+    - Vkljuci odgovore na: {coaching_options}.
+    Uporabljaj profesionalen ton po vzoru uradnih porocil.
     """
     response = client.chat.completions.create(
         model="gpt-4",
@@ -38,29 +41,29 @@ def generiraj_ai_profil(polno_ime, conscious, less_conscious, coaching_options):
     )
     return response.choices[0].message.content
 
-# --- UI ---
+# --- UPORABNIŠKI VMESNIK ---
 st.set_page_config(page_title="Insights Discovery Profiler", layout="wide")
 
-# CSS za boljšo vizualno ločitev in "bold" okvirje
 st.markdown("""
     <style>
-    .stForm {
-        border: 2px solid #0070C0 !important;
-        padding: 20px;
-        border-radius: 10px;
+    .stRadio > div {
+        flex-direction: row;
+        justify-content: center;
     }
-    div[data-testid="stExpander"] {
-        border: 1px solid #d3d3d3;
+    .stForm {
+        border: 3px solid #0070C0 !important;
+        padding: 30px;
+        border-radius: 15px;
     }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🌈 Insights Discovery - Profesionalni Profiler")
 
-# 1. ZDRUŽEN VNOS IMENA
-polno_ime = st.text_input("Ime in priimek stranke", placeholder="Vpišite polno ime...")
+# 1. ZDRUŽENO IME NA VRHU
+polno_ime = st.text_input("Ime in priimek stranke", placeholder="Vpišite polno ime (npr. Janez Novak)")
 
-# 15 sklopov trditev
+# 15 SKLOPOV (Matematika prilagojena na 15)
 raw_questions = [
     {"B": "Sistematičen in dosleden", "R": "Neposreden in prodoren", "G": "Razumevajoč in ustrežljiv", "Y": "Živahen in komunikativen"},
     {"B": "Objektiven opazovalec", "R": "Močan in neodvisen", "G": "Zanesljiv sopotnik", "Y": "Navdihujoč govorec"},
@@ -86,41 +89,40 @@ with st.form("insights_form"):
     all_inputs = []
     for i, items in enumerate(st.session_state.shuffled_items):
         with st.container(border=True):
-            st.markdown(f"### **SKLOP {i+1} od 15**")
-            # Vodoravna razporeditev po vzoru tvoje slike
+            st.markdown(f"### **SKLOP {i+1}**")
             cols = st.columns(4)
             for idx, (color, text) in enumerate(items):
                 with cols[idx]:
-                    st.markdown(f"<div style='height: 50px; font-weight: bold;'>{text}</div>", unsafe_allow_html=True)
-                    val = st.select_slider(f"S{i}C{idx}", options=OPTIONS, value="2", key=f"q_{i}_{color}", label_visibility="collapsed")
+                    st.markdown(f"<div style='height: 45px; font-weight: bold; text-align: center;'>{text}</div>", unsafe_allow_html=True)
+                    val = st.radio(f"Lestvica_{i}_{color}", OPTIONS, index=1, horizontal=True, key=f"q_{i}_{color}", label_visibility="collapsed")
                     all_inputs.append((color, SCORE_MAP[val]))
     
     st.divider()
-    st.subheader("🎯 Coaching vprašanja za Genie AI")
-    c_stres = st.checkbox("Odziv na stres")
-    c_vodenje = st.checkbox("Nasveti za vodenje")
+    st.subheader("🎯 Modul za Coaching in Interpretacijo")
+    c_stres = st.checkbox("Analiza vedenja pod stresom", value=True)
+    c_vodenje = st.checkbox("Strategije za vodenje te osebe")
     c_komunikacija = st.checkbox("Komunikacija z nasprotnim tipom")
-    c_okolje = st.checkbox("Idealno delovno okolje")
-    c_blind = st.checkbox("Slepe pege (Blind Spots)")
+    c_blind = st.checkbox("Prepoznavanje slepih peg")
+    c_team = st.checkbox("Prispevek k timski dinamiki")
     
-    submitted = st.form_submit_button("USTVARI PROFESIONALNI PROFIL")
+    submitted = st.form_submit_button("GENERIRAJ PROFESIONALNI AI PROFIL")
 
 if submitted:
     if not polno_ime:
-        st.error("Prosim, vpišite ime na vrhu!")
+        st.error("Prosim, vnesite ime na vrhu strani!")
     else:
-        # MATEMATIKA: Deljenje s 15 (pravilna skala do 6.0)
+        # MATEMATIKA: Delimo s 15 za skalo 0-6
         conscious = {c: sum([s for col, s in all_inputs if col == c]) / 15 for c in COLORS_MAP}
         less_conscious = {c: 6.0 - conscious[OPPOSITES[c]] for c in COLORS_MAP}
         
         coaching_txt = ""
-        if c_stres: coaching_txt += "Analiziraj stres. "
+        if c_stres: coaching_txt += "Odziv na stres. "
         if c_vodenje: coaching_txt += "Nasveti za vodjo. "
-        if c_komunikacija: coaching_txt += "Interakcija z nasprotnim tipom. "
-        if c_okolje: coaching_txt += "Motivacija in okolje. "
+        if c_komunikacija: coaching_txt += "Komunikacija z nasprotnim tipom. "
         if c_blind: coaching_txt += "Slepe pege. "
+        if c_team: coaching_txt += "Vrednost za tim. "
 
-        with st.spinner("Genie AI pripravlja PDF poročilo..."):
+        with st.spinner("Genie AI pripravlja PDF po meri..."):
             ai_vsebina = generiraj_ai_profil(polno_ime, conscious, less_conscious, coaching_txt)
 
             pdf = FPDF()
@@ -131,29 +133,29 @@ if submitted:
             pdf.set_fill_color(0, 112, 192)
             pdf.rect(0, 0, 210, 297, 'F')
             pdf.set_text_color(255, 255, 255)
-            pdf.set_font("Helvetica", "B", 30)
+            pdf.set_font("Helvetica", "B", 35)
             pdf.cell(0, 100, "INSIGHTS DISCOVERY", align='C', ln=True)
-            pdf.set_font("Helvetica", "", 18)
-            pdf.cell(0, 20, clean_chars(f"OSEBNI PROFIL: {polno_ime}"), align='C', ln=True)
+            pdf.set_font("Helvetica", "", 20)
+            pdf.cell(0, 15, clean_chars(f"OSEBNI PROFIL: {polno_ime}"), align='C', ln=True)
             
-            # AI Analiza
+            # AI Vsebina
             pdf.add_page()
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Helvetica", "B", 16)
-            pdf.cell(0, 10, clean_chars("Analiza osebnega sloga"), ln=True)
+            pdf.cell(0, 15, clean_chars("Temeljno poglavje in AI interpretacija"), ln=True)
             pdf.ln(5)
             pdf.set_font("Helvetica", "", 11)
             pdf.multi_cell(0, 7, clean_chars(ai_vsebina))
             
-            # Stevilke
+            # Graficni povzetek
             pdf.add_page()
             pdf.set_font("Helvetica", "B", 14)
-            pdf.cell(0, 10, clean_chars("Vrednosti barvnih energij (Skala 0-6)"), ln=True)
+            pdf.cell(0, 15, clean_chars("Pregled vrednosti barvnih energij"), ln=True)
             pdf.ln(5)
             for c in COLORS_MAP:
                 diff = conscious[c] - less_conscious[c]
-                pdf.cell(0, 10, clean_chars(f"{c}: Zavedno {round(conscious[c],2)} | Nezavedno {round(less_conscious[c],2)} | Premik: {round(diff,2)}"), ln=True)
+                pdf.cell(0, 10, clean_chars(f"{c}: Zavedno {round(conscious[c],2)} | Nezavedno {round(less_conscious[c],2)} | Tok: {round(diff,2)}"), ln=True)
 
             pdf_output = bytes(pdf.output())
-            st.success("Končano!")
-            st.download_button("📥 Prenesi PDF Profil", pdf_output, f"Insights_{polno_ime}.pdf")
+            st.success("Analiza končana!")
+            st.download_button("📥 Prenesi PDF poročilo", pdf_output, f"Insights_{polno_ime}.pdf")
